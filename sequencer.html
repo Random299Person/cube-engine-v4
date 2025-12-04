@@ -1,0 +1,1505 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Grid Sequencer</title>
+    <style>
+        :root {
+            /* Synthwave / Dark Modern Palette */
+            --c-bg-main: #090415;      /* Almost black */
+            --c-bg-panel: #110b29;     /* Deep purple sidebar */
+            --c-bg-input: #1f1440;     /* Lighter input bg */
+            
+            --c-border: #4a2c60;       /* Subtle border */
+            --c-border-active: #d500f9;/* Bright border */
+
+            --c-accent: #d500f9;       /* Neon Magenta */
+            --c-accent-sec: #00e5ff;   /* Neon Cyan */
+            
+            --c-text: #ffffff;
+            --c-text-muted: #b39ddb;
+
+            --c-grid-line: rgba(186, 104, 200, 0.15);
+            --c-beat-line: rgba(186, 104, 200, 0.4);
+            
+            --c-event-bg: #6a1b9a;     /* Base event color */
+            --c-event-hover: #7c4dff;
+            --c-event-selected: #e040fb; /* Highlighted event */
+        }
+
+        * { box-sizing: border-box; user-select: none; }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: var(--c-bg-main);
+            color: var(--c-text);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            height: 100vh;
+            display: flex;
+            overflow: hidden;
+            font-size: 12px;
+        }
+
+        /* --- Layout --- */
+        #sidebar {
+            width: 300px;
+            background-color: var(--c-bg-panel);
+            border-right: 1px solid var(--c-border);
+            display: flex;
+            flex-direction: column;
+            flex-shrink: 0;
+            z-index: 10;
+            box-shadow: 4px 0 15px rgba(0,0,0,0.3);
+        }
+
+        #edit-panel {
+            flex: 1;
+            padding: 15px;
+            border-bottom: 2px solid var(--c-border);
+            overflow-y: auto;
+        }
+
+        #settings-panel {
+            height: 45%;
+            padding: 15px;
+            background-color: rgba(0,0,0,0.2);
+            overflow-y: auto;
+            border-top: 1px solid rgba(255,255,255,0.05);
+        }
+
+        #main-view {
+            flex: 1;
+            position: relative;
+            background-color: var(--c-bg-main);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* --- Canvas Container --- */
+        #grid-container {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+            cursor: crosshair;
+        }
+
+        canvas {
+            display: block;
+        }
+
+        /* --- HUD Display --- */
+        #event-hud {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            width: 280px;
+            background: rgba(17, 11, 41, 0.85);
+            border: 1px solid var(--c-accent);
+            border-left: 4px solid var(--c-accent);
+            border-radius: 4px;
+            padding: 12px;
+            color: white;
+            pointer-events: none; /* Let clicks pass through */
+            backdrop-filter: blur(4px);
+            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+            transition: opacity 0.5s ease-in-out; /* Slower fade */
+            opacity: 0; /* Hidden by default */
+            z-index: 20;
+        }
+
+        #event-hud.active { opacity: 1; transition: opacity 0.1s; } /* Fast appear */
+
+        #event-hud h4 { margin: 0 0 5px 0; color: var(--c-accent); text-transform: uppercase; letter-spacing: 1px; font-size: 11px; }
+        #event-hud .hud-name { font-size: 16px; font-weight: bold; margin-bottom: 4px; text-shadow: 0 0 5px rgba(213, 0, 249, 0.4); }
+        #event-hud .hud-time { font-family: monospace; color: var(--c-accent-sec); margin-bottom: 8px; font-size: 12px; }
+        #event-hud .hud-params { font-size: 11px; color: var(--c-text-muted); line-height: 1.4; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 5px; }
+
+        /* --- UI Elements --- */
+        h2, h3 { margin: 0 0 15px 0; color: var(--c-text); font-weight: 700; text-transform: uppercase; letter-spacing: 2px; font-size: 14px; border-bottom: 2px solid var(--c-accent); padding-bottom: 5px; display: inline-block; }
+        
+        .control-group {
+            margin-bottom: 12px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .control-group label {
+            margin-bottom: 4px;
+            color: var(--c-text-muted);
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+        .control-group.disabled {
+            opacity: 0.4;
+            pointer-events: none;
+        }
+
+        input[type="text"], input[type="number"], select {
+            background: var(--c-bg-input);
+            border: 1px solid var(--c-border);
+            color: var(--c-text);
+            padding: 8px;
+            border-radius: 4px;
+            width: 100%;
+            transition: all 0.2s;
+            font-family: monospace;
+        }
+
+        input[type="number"]::-webkit-inner-spin-button { opacity: 1; }
+
+        input:focus, select:focus {
+            outline: none;
+            border-color: var(--c-accent);
+            box-shadow: 0 0 8px rgba(213, 0, 249, 0.3);
+            background: #2a1b50;
+        }
+
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 12px;
+            padding: 5px;
+            background: rgba(255,255,255,0.03);
+            border-radius: 4px;
+        }
+
+        .checkbox-group.disabled {
+            opacity: 0.4;
+            pointer-events: none;
+        }
+        
+        .checkbox-group input { width: auto; accent-color: var(--c-accent); }
+        .checkbox-group label { margin: 0; cursor: pointer; }
+
+        .tween-row {
+            display: flex;
+            gap: 5px;
+        }
+
+        button {
+            background: linear-gradient(45deg, #6a1b9a, #8e24aa);
+            color: white;
+            border: none;
+            padding: 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-top: 8px;
+            width: 100%;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            transition: all 0.2s;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+
+        button:hover { 
+            background: linear-gradient(45deg, #8e24aa, #ab47bc);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.4);
+        }
+        button:active { transform: translateY(1px); }
+        
+        .transport-bar {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid var(--c-border);
+        }
+        
+        .btn-play { background: linear-gradient(45deg, #00c853, #00e676); color: #000; }
+        .btn-stop { background: linear-gradient(45deg, #d50000, #ff1744); }
+        .btn-zoom { background: var(--c-bg-input); border: 1px solid var(--c-border); color: var(--c-text); }
+        .btn-zoom:hover { background: var(--c-event-bg); border-color: var(--c-accent); }
+        
+        .btn-danger { background: #330000; border: 1px solid #ff1744; color: #ff8a80; margin-top: 15px; }
+        .btn-danger:hover { background: #550000; }
+        
+        .hidden { display: none !important; }
+
+        /* Custom Modal Styles */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            backdrop-filter: blur(2px);
+        }
+        .modal-box {
+            background: var(--c-bg-panel);
+            border: 2px solid var(--c-accent);
+            padding: 25px;
+            border-radius: 8px;
+            max-width: 350px;
+            text-align: center;
+            box-shadow: 0 0 30px rgba(213, 0, 249, 0.2);
+        }
+        .modal-actions {
+            display: flex;
+            gap: 15px;
+            margin-top: 25px;
+            justify-content: center;
+        }
+        .modal-actions button { width: auto; margin-top: 0; min-width: 100px; }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: var(--c-bg-main); }
+        ::-webkit-scrollbar-thumb { background: var(--c-border); border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--c-accent); }
+    </style>
+</head>
+<body>
+
+    <div id="sidebar">
+        <!-- TOP: Edit Menu -->
+        <div id="edit-panel">
+            <h3>Edit Event</h3>
+            <div class="control-group">
+                <label>Event Type</label>
+                <select id="event-type-select"></select>
+            </div>
+            <div id="dynamic-controls"></div>
+            
+            <hr style="border-color: var(--c-border); margin: 20px 0;">
+            
+            <div class="control-group" id="grp-target">
+                <label>Target ID</label>
+                <input type="number" id="prop-target" min="0" step="1" value="0">
+            </div>
+            <div class="checkbox-group" id="grp-stacking">
+                <input type="checkbox" id="prop-stacking">
+                <label for="prop-stacking">Stacking</label>
+            </div>
+            
+            <hr style="border-color: var(--c-border); margin: 20px 0;">
+            <button id="btn-delete-event" class="btn-danger" style="margin-top: 0;">Delete Event</button>
+        </div>
+
+        <!-- BOTTOM: Settings Menu -->
+        <div id="settings-panel">
+            <h3>Settings</h3>
+
+            <!-- Transport Controls -->
+            <div class="transport-bar">
+                <button id="btn-play" class="btn-play">▶ Play</button>
+                <button id="btn-stop" class="btn-stop">⏹ Stop</button>
+            </div>
+
+            <!-- Zoom Controls -->
+            <div class="control-group">
+                <label>Vertical Zoom</label>
+                <div style="display: flex; gap: 5px;">
+                    <button id="btn-zoom-out" class="btn-zoom" style="margin-top:0; font-size: 14px;">−</button>
+                    <button id="btn-zoom-in" class="btn-zoom" style="margin-top:0; font-size: 14px;">+</button>
+                </div>
+            </div>
+            
+            <!-- Audio -->
+            <div class="control-group embed-hidden">
+                <label>Audio File</label>
+                <input type="file" id="audio-input" accept="audio/*">
+            </div>
+
+            <!-- BPM -->
+            <div class="control-group embed-hidden">
+                <label>BPM</label>
+                <input type="number" id="set-bpm" value="140.00" step="0.01">
+            </div>
+
+            <!-- Steps Per Beat -->
+            <div class="control-group embed-hidden">
+                <label>Steps Per Beat</label>
+                <input type="number" id="set-spb" value="4" step="1" min="1">
+            </div>
+
+            <!-- Beats Per Loop -->
+            <div class="control-group embed-hidden">
+                <label>Beats Per Loop</label>
+                <input type="number" id="set-bpl" value="16" step="1" min="1">
+            </div>
+
+            <!-- Columns -->
+            <div class="control-group">
+                <label>Columns</label>
+                <input type="number" id="set-cols" value="4" step="1" min="1">
+            </div>
+
+            <!-- Quantizer -->
+            <div class="control-group">
+                <label>Quantizer (1/x)</label>
+                <input type="number" id="set-quant" value="4" step="1" min="1">
+            </div>
+
+            <!-- Actions -->
+            <button id="btn-export" class="embed-hidden">Export JSON</button>
+            <button id="btn-save" class="embed-only hidden">Save</button>
+
+            <hr style="border-color: var(--c-border); margin: 15px 0;" class="embed-hidden">
+            <button id="btn-clear" class="btn-danger embed-hidden">Clear All Events</button>
+        </div>
+    </div>
+
+    <div id="main-view">
+        <div id="event-hud">
+            <h4>Active Event</h4>
+            <div class="hud-name"></div>
+            <div class="hud-time"></div>
+            <div class="hud-params"></div>
+        </div>
+        <div id="grid-container">
+            <canvas id="grid-canvas"></canvas>
+        </div>
+    </div>
+
+    <!-- Confirmation Modal -->
+    <div id="confirm-modal" class="modal-overlay hidden">
+        <div class="modal-box">
+            <h3 style="border:none; color: var(--c-accent);">Warning</h3>
+            <p style="margin-bottom: 10px; color: #fff;">Are you sure you want to delete all events?</p>
+            <p style="font-size: 11px; color: var(--c-text-muted); margin-top: 0;">This action cannot be undone.</p>
+            <div class="modal-actions">
+                <button id="modal-confirm" class="btn-danger">Yes, Delete</button>
+                <button id="modal-cancel" style="background: #333;">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+<script>
+/**
+ * DATA & CONFIGURATION
+ */
+const TWEEN_STYLES = ['linear', 'quad', 'sine', 'cubic', 'quart', 'quint', 'expo', 'circ', 'back', 'elastic', 'bounce'];
+const TWEEN_DIRS = ['in', 'out', 'in out'];
+const EFFECTS = ['color', 'fisheye', 'whirl', 'pixelate', 'mosaic', 'brightness', 'ghost', 'saturation', 'red', 'green', 'blue', 'opaque'];
+
+// Parse URL Params
+const urlParams = new URLSearchParams(window.location.search);
+const isEmbed = urlParams.get('embed') === 'true';
+const isDebug = urlParams.get('debug') === 'true';
+
+// Definition of all events based on prompt
+const EVENT_DEFS = {
+    // Animation
+    "Switch costume": { costume: "string" },
+    "Play Animation": { animation: "string", fps: "number", start: "string", looped: "boolean", _defaults: { fps: 24 } },
+    "Stop Animation": {},
+
+    // Effects
+    "Set Effect": { effect: "effect", value: "number" },
+    "Change Effect": { effect: "effect", delta: "number" },
+    "Reset Effect": { effect: "effect" },
+    "Clear All Effects": {},
+
+    // Motion
+    "Set Position": { x: "number", y: "number" },
+    "Change Position": { x: "number", y: "number" },
+    "Reset Position": {},
+    "Set X Position": { x: "number" },
+    "Change X Position": { x: "number" },
+    "Reset X Position": {},
+    "Set Y Position": { y: "number" },
+    "Change Y Position": { y: "number" },
+    "Reset Y Position": {},
+    "Set Direction": { direction: "number", _defaults: { direction: 90 } },
+    "Change Direction": { direction: "number" },
+    "Reset Direction": {},
+    "Set Size": { size: "number", _defaults: { size: 70 } },
+    "Change Size": { size: "number" },
+    "Set Stretch": { x: "number", y: "number", _defaults: { x: 100, y: 100 } },
+    "Change Stretch": { x: "number", y: "number" },
+    "Reset Stretch": {},
+    "Set X Stretch": { x: "number", _defaults: { x: 100 } },
+    "Change X Stretch": { x: "number" },
+    "Reset X Stretch": {},
+    "Set Y Stretch": { y: "number", _defaults: { y: 100 } },
+    "Change Y Stretch": { y: "number" },
+    "Reset Y Stretch": {},
+
+    // Tweening
+    "Tween Position": { x: "number", y: "number", duration: "number", tweenMode: "tweenMode", _defaults: { duration: 1 } },
+    "Cancel Tween Position": { x: "number", y: "number" }, 
+    "Tween X Position": { x: "number", duration: "number", tweenMode: "tweenMode", _defaults: { duration: 1 } },
+    "Cancel Tween X Position": {},
+    "Tween Y Position": { y: "number", duration: "number", tweenMode: "tweenMode", _defaults: { duration: 1 } },
+    "Cancel Tween Y Position": {},
+    "Tween Direction": { direction: "number", duration: "number", tweenMode: "tweenMode", _defaults: { direction: 90, duration: 1 } },
+    "Cancel Tween Direction": {},
+    "Tween Size": { size: "number", duration: "number", tweenMode: "tweenMode", _defaults: { size: 70, duration: 1 } },
+    "Cancel Tween Size": { size: "number" }, 
+    "Tween Stretch": { x: "number", y: "number", duration: "number", tweenMode: "tweenMode", _defaults: { x: 100, y: 100, duration: 1 } },
+    "Tween X Stretch": { x: "number", duration: "number", tweenMode: "tweenMode", _defaults: { x: 100, duration: 1 } },
+    "Tween Y Stretch": { y: "number", duration: "number", tweenMode: "tweenMode", _defaults: { y: 100, duration: 1 } },
+    "Cancel Tween Stretch": {},
+    "Cancel Tween X Stretch": { x: "number" },
+    "Cancel Tween Y Stretch": { y: "number" },
+
+    // Events
+    "Broadcast Message": { name: "string", data: "string", hideTarget: true }, 
+    "Set Variable": { name: "string", value: "string", hideTarget: true },
+    "Change Variable": { name: "string", increment: "number", hideTarget: true },
+    
+    // Example from prompt
+    "Example Event": { newX: "number", newY: "number", layer: "int", message: "string", override: "boolean", tweenMode: "tweenMode", effect: "effect", hideTarget: true, comment: "Lorem ipsum" }
+};
+
+// Application State
+const state = {
+    bpm: parseFloat(urlParams.get('bpm')) || 140.00,
+    spb: parseInt(urlParams.get('spb')) || 4,
+    bpl: parseInt(urlParams.get('bpl')) || 16,
+    columns: 4,
+    quantizer: 4, // 1/4 default
+    
+    events: [], // Array of { time, column, type, params: {}, target, stacking, _uid }
+    selection: new Set(), // Set of _uids
+    // clipboard: [], // Removed clipboard support
+    
+    selectedEventType: "Set Position",
+    
+    audioBuffer: null,
+    audioContext: new (window.AudioContext || window.webkitAudioContext)(),
+    isPlaying: false,
+    startTime: 0,
+    playbackTime: 0,
+    audioSource: null,
+    
+    // Viewport
+    scrollY: 0,
+    zoom: 60, // pixels per beat
+    
+    // Interaction
+    isDragging: false,
+    isBoxSelecting: false,
+    dragStart: { x: 0, y: 0 },
+    dragMode: null, // 'move', 'select', 'pan'
+    boxSelectRect: { x: 0, y: 0, w: 0, h: 0 },
+    lastMouseY: 0
+};
+
+// Add UID to events
+let uidCounter = 0;
+function getUid() { return ++uidCounter; }
+
+/**
+ * HELPER: Initialize Params fully with defaults
+ */
+function initializeParams(type) {
+    const def = EVENT_DEFS[type];
+    if (!def) return {};
+    const params = {};
+    if (def._defaults) Object.assign(params, def._defaults);
+    
+    for (const [key, valType] of Object.entries(def)) {
+        if (key.startsWith('_') || key === 'hideTarget' || key === 'comment') continue;
+        if (params[key] === undefined) {
+            params[key] = getDefault(valType);
+        }
+    }
+    return params;
+}
+
+/**
+ * UI INITIALIZATION
+ */
+function initUI() {
+    // Populate Event Select
+    const select = document.getElementById('event-type-select');
+    Object.keys(EVENT_DEFS).forEach(key => {
+        // HIDE EXAMPLE EVENT UNLESS DEBUG
+        if (key === "Example Event" && !isDebug) return;
+
+        const opt = document.createElement('option');
+        opt.value = key;
+        opt.textContent = key;
+        select.appendChild(opt);
+    });
+    select.value = "Set Position";
+    
+    // Enhanced Selection Change Logic
+    select.onchange = (e) => {
+        const newType = e.target.value;
+        state.selectedEventType = newType;
+        
+        if (state.selection.size > 0) {
+            state.selection.forEach(uid => {
+                const evt = state.events.find(ev => ev._uid === uid);
+                if(evt) {
+                    evt.type = newType;
+                    evt.params = initializeParams(newType); 
+                }
+            });
+            draw();
+        }
+        renderDynamicControls();
+    };
+
+    // Embed Mode Classes
+    if (isEmbed) {
+        document.querySelectorAll('.embed-hidden').forEach(el => el.classList.add('hidden'));
+        document.querySelectorAll('.embed-only').forEach(el => el.classList.remove('hidden'));
+    }
+
+    // Settings Inputs
+    const bindInput = (id, key, parser, cb) => {
+        const el = document.getElementById(id);
+        if(el) {
+            el.value = state[key];
+            el.onchange = () => {
+                state[key] = parser(el.value);
+                if(cb) cb();
+                draw();
+            };
+        }
+    };
+
+    // FIX: Added generateWaveformBitmap callback to BPM input
+    bindInput('set-bpm', 'bpm', parseFloat, generateWaveformBitmap);
+    bindInput('set-spb', 'spb', parseInt, generateWaveformBitmap);
+    bindInput('set-bpl', 'bpl', parseInt, generateWaveformBitmap);
+    bindInput('set-cols', 'columns', parseInt);
+    bindInput('set-quant', 'quantizer', parseInt);
+
+    // Audio Loading
+    const audioInput = document.getElementById('audio-input');
+    if (audioInput) {
+        audioInput.onchange = async (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const arrayBuffer = await file.arrayBuffer();
+                state.audioContext.decodeAudioData(arrayBuffer, (buffer) => {
+                    state.audioBuffer = buffer;
+                    generateWaveformBitmap();
+                    draw();
+                });
+            }
+        };
+    }
+    
+    // Base64 Audio param
+    const b64Audio = urlParams.get('audio');
+    if(b64Audio) {
+        try {
+            const binary = atob(b64Audio);
+            const len = binary.length;
+            const bytes = new Uint8Array(len);
+            for (let i = 0; i < len; i++) bytes[i] = binary.charCodeAt(i);
+            state.audioContext.decodeAudioData(bytes.buffer, (buffer) => {
+                state.audioBuffer = buffer;
+                generateWaveformBitmap();
+                draw();
+            });
+        } catch(e) { console.error("Failed to decode audio param", e); }
+    }
+
+    // Actions
+    document.getElementById('btn-export').onclick = exportJSON;
+    document.getElementById('btn-save').onclick = () => {
+        const json = generateJSON();
+        window.parent.postMessage({ type: 'save', data: json }, '*');
+    };
+    
+    // Clear All Logic with Custom Modal
+    const modal = document.getElementById('confirm-modal');
+    
+    document.getElementById('btn-clear').onclick = () => {
+        modal.classList.remove('hidden');
+    };
+
+    document.getElementById('modal-cancel').onclick = () => {
+        modal.classList.add('hidden');
+    };
+
+    document.getElementById('modal-confirm').onclick = () => {
+        state.events = [];
+        state.selection.clear();
+        renderDynamicControls();
+        draw();
+        modal.classList.add('hidden');
+    };
+    
+    // Delete Single/Selected Logic
+    document.getElementById('btn-delete-event').onclick = () => {
+        if(state.selection.size > 0) {
+            state.events = state.events.filter(ev => !state.selection.has(ev._uid));
+            state.selection.clear();
+            renderDynamicControls();
+            draw();
+        }
+    };
+    
+    // Transport
+    document.getElementById('btn-play').onclick = togglePlay;
+    document.getElementById('btn-stop').onclick = stopPlayback;
+
+    // Zoom Logic
+    document.getElementById('btn-zoom-in').onclick = () => {
+        state.zoom = Math.min(state.zoom + 10, 200); // Max zoom cap
+        generateWaveformBitmap();
+        draw();
+    };
+
+    document.getElementById('btn-zoom-out').onclick = () => {
+        state.zoom = Math.max(state.zoom - 10, 20); // Min zoom cap
+        generateWaveformBitmap();
+        draw();
+    };
+
+    // Global Input
+    window.addEventListener('keydown', handleKey);
+    
+    renderDynamicControls();
+}
+
+/**
+ * EDIT PANEL LOGIC
+ */
+function renderDynamicControls() {
+    const container = document.getElementById('dynamic-controls');
+    container.innerHTML = '';
+    
+    let defName = state.selectedEventType;
+    let values = {}; 
+    let isEditingSingle = false;
+
+    if (state.selection.size === 1) {
+        const id = Array.from(state.selection)[0];
+        const evt = state.events.find(e => e._uid === id);
+        if (evt) {
+            defName = evt.type;
+            values = evt.params;
+            isEditingSingle = true;
+            
+            const def = EVENT_DEFS[defName];
+            const targetGrp = document.getElementById('grp-target');
+            const targetInput = document.getElementById('prop-target');
+            const stackingGrp = document.getElementById('grp-stacking');
+            const stackingInput = document.getElementById('prop-stacking');
+            
+            // Logic: Disable Stacking if Target is disabled
+            if (def.hideTarget) {
+                targetInput.disabled = true;
+                targetInput.value = 0;
+                targetGrp.classList.add('disabled');
+                
+                stackingInput.disabled = true;
+                stackingInput.checked = false;
+                stackingGrp.classList.add('disabled');
+            } else {
+                targetInput.disabled = false;
+                targetInput.value = evt.target;
+                targetGrp.classList.remove('disabled');
+                
+                stackingInput.disabled = false;
+                stackingInput.checked = evt.stacking;
+                stackingGrp.classList.remove('disabled');
+            }
+        }
+    } else {
+        const def = EVENT_DEFS[defName];
+        values = initializeParams(defName);
+        
+        const targetGrp = document.getElementById('grp-target');
+        const targetInput = document.getElementById('prop-target');
+        const stackingGrp = document.getElementById('grp-stacking');
+        const stackingInput = document.getElementById('prop-stacking');
+        
+        if (def.hideTarget) {
+            targetInput.disabled = true;
+            targetInput.value = 0;
+            targetGrp.classList.add('disabled');
+            
+            stackingInput.disabled = true;
+            stackingGrp.classList.add('disabled');
+        } else {
+            targetInput.disabled = false;
+            targetGrp.classList.remove('disabled');
+            
+            stackingInput.disabled = false;
+            stackingGrp.classList.remove('disabled');
+        }
+    }
+
+    const def = EVENT_DEFS[defName];
+    if (!def) return;
+
+    if (def.comment) {
+        const note = document.createElement('div');
+        note.style.fontSize = "10px";
+        note.style.fontStyle = "italic";
+        note.style.color = "var(--c-text-muted)";
+        note.style.marginBottom = "8px";
+        note.textContent = def.comment;
+        container.appendChild(note);
+    }
+
+    for (const [key, type] of Object.entries(def)) {
+        if (key.startsWith('_') || key === 'hideTarget' || key === 'comment') continue;
+
+        const wrapper = document.createElement('div');
+        wrapper.className = 'control-group';
+        wrapper.setAttribute('data-key', key); // Mark so we can read DOM later
+        wrapper.setAttribute('data-type', type);
+        
+        const label = document.createElement('label');
+        label.textContent = key;
+        wrapper.appendChild(label);
+
+        let input;
+
+        const updateValue = (val) => {
+            if (isEditingSingle) {
+                const id = Array.from(state.selection)[0];
+                const evt = state.events.find(e => e._uid === id);
+                if (evt) {
+                    evt.params[key] = val;
+                    draw();
+                }
+            } else {
+                values[key] = val;
+            }
+        };
+
+        const currentVal = values[key] !== undefined ? values[key] : getDefault(type);
+
+        if (type === 'number' || type === 'int') {
+            input = document.createElement('input');
+            input.type = 'number';
+            input.step = type === 'int' ? '1' : '0.01';
+            input.value = currentVal;
+            input.onchange = (e) => {
+                let val = parseFloat(e.target.value);
+                if (type === 'int') {
+                    val = Math.round(val);
+                    e.target.value = val; // Force display update
+                }
+                updateValue(val);
+            };
+        } else if (type === 'string') {
+            input = document.createElement('input');
+            input.type = 'text';
+            input.value = currentVal;
+            input.onchange = (e) => updateValue(e.target.value);
+        } else if (type === 'boolean') {
+            input = document.createElement('div');
+            input.className = 'checkbox-group';
+            const cb = document.createElement('input');
+            cb.type = 'checkbox';
+            cb.checked = currentVal;
+            cb.onchange = (e) => updateValue(e.target.checked);
+            const lb = document.createElement('label');
+            lb.textContent = "Enabled";
+            lb.onclick = () => cb.click();
+            input.appendChild(cb);
+            input.appendChild(lb);
+            // Helper for DOM reading
+            wrapper.setAttribute('data-bool', 'true'); 
+        } else if (type === 'effect') {
+            input = document.createElement('select');
+            EFFECTS.forEach(eff => {
+                const opt = document.createElement('option');
+                opt.value = eff;
+                opt.textContent = eff;
+                input.appendChild(opt);
+            });
+            input.value = currentVal;
+            input.onchange = (e) => updateValue(e.target.value);
+        } else if (type === 'tweenMode') {
+            input = document.createElement('div');
+            input.className = 'tween-row';
+            
+            const styleSel = document.createElement('select');
+            const dirSel = document.createElement('select');
+
+            TWEEN_STYLES.forEach(s => styleSel.add(new Option(s, s)));
+            TWEEN_DIRS.forEach(d => dirSel.add(new Option(d, d)));
+
+            let [s, ...dParts] = (currentVal || "linear-in out").split('-');
+            let d = dParts.join('-'); 
+            
+            if(!TWEEN_STYLES.includes(s)) s = "linear";
+            if(!TWEEN_DIRS.includes(d)) d = "in out";
+
+            styleSel.value = s;
+            dirSel.value = d;
+
+            const pushTween = () => updateValue(`${styleSel.value}-${dirSel.value}`);
+            styleSel.onchange = pushTween;
+            dirSel.onchange = pushTween;
+
+            input.appendChild(styleSel);
+            input.appendChild(dirSel);
+        }
+
+        if (input) wrapper.appendChild(input);
+        container.appendChild(wrapper);
+    }
+}
+
+// Global property listeners
+document.getElementById('prop-target').onchange = (e) => {
+    const val = parseInt(e.target.value);
+    state.selection.forEach(uid => {
+        const evt = state.events.find(ev => ev._uid === uid);
+        if(evt && !EVENT_DEFS[evt.type].hideTarget) evt.target = val;
+    });
+    draw();
+};
+
+document.getElementById('prop-stacking').onchange = (e) => {
+    const val = e.target.checked;
+    state.selection.forEach(uid => {
+        const evt = state.events.find(ev => ev._uid === uid);
+        if(evt) evt.stacking = val;
+    });
+    draw();
+};
+
+function getDefault(type) {
+    if (type === 'number' || type === 'int') return 0;
+    if (type === 'string') return "";
+    if (type === 'boolean') return false;
+    if (type === 'tweenMode') return "linear-in out";
+    if (type === 'effect') return "color";
+    return null;
+}
+
+/**
+ * HELPER: Scrape current sidebar values to use for new events
+ */
+function getCurrentToolParams(type) {
+    const params = initializeParams(type); // Start with defaults
+    const container = document.getElementById('dynamic-controls');
+    
+    const groups = container.querySelectorAll('.control-group');
+    groups.forEach(grp => {
+        const key = grp.getAttribute('data-key');
+        const dataType = grp.getAttribute('data-type');
+        if(!key) return;
+
+        if (dataType === 'number' || dataType === 'int') {
+            const val = parseFloat(grp.querySelector('input').value);
+            params[key] = isNaN(val) ? 0 : val;
+        } else if (dataType === 'string') {
+            params[key] = grp.querySelector('input').value;
+        } else if (dataType === 'boolean') {
+            params[key] = grp.querySelector('input[type="checkbox"]').checked;
+        } else if (dataType === 'effect') {
+            params[key] = grp.querySelector('select').value;
+        } else if (dataType === 'tweenMode') {
+            const selects = grp.querySelectorAll('select');
+            if(selects.length === 2) {
+                params[key] = `${selects[0].value}-${selects[1].value}`;
+            }
+        }
+    });
+    
+    return params;
+}
+
+
+/**
+ * CANVAS ENGINE
+ */
+const canvas = document.getElementById('grid-canvas');
+const ctx = canvas.getContext('2d');
+const container = document.getElementById('grid-container');
+
+let waveformCanvas = null;
+
+function resize() {
+    canvas.width = container.clientWidth;
+    canvas.height = container.clientHeight;
+    draw();
+}
+window.addEventListener('resize', resize);
+
+function getY(time) {
+    const bps = state.bpm / 60;
+    const beats = time * bps;
+    return beats * state.zoom - state.scrollY;
+}
+
+function getTime(y) {
+    const absY = y + state.scrollY;
+    const beats = absY / state.zoom;
+    const bps = state.bpm / 60;
+    return beats / bps;
+}
+
+function snapTime(time) {
+    const bps = state.bpm / 60;
+    const beatDuration = 1 / bps;
+    const stepDuration = beatDuration / state.quantizer;
+    return Math.round(time / stepDuration) * stepDuration;
+}
+
+function generateWaveformBitmap() {
+    if (!state.audioBuffer) return;
+    
+    const bps = state.bpm / 60;
+    const totalHeight = state.bpl * state.zoom;
+
+    waveformCanvas = document.createElement('canvas');
+    waveformCanvas.width = 100;
+    waveformCanvas.height = totalHeight;
+    const wCtx = waveformCanvas.getContext('2d');
+
+    const data = state.audioBuffer.getChannelData(0);
+    const amp = 50;
+    
+    wCtx.fillStyle = "#d500f9"; 
+    wCtx.beginPath();
+    
+    for (let i = 0; i < totalHeight; i++) {
+        const t = (i / state.zoom) / bps;
+        if(t > state.audioBuffer.duration) break;
+        
+        const sampleIdx = Math.floor(t * state.audioBuffer.sampleRate);
+        
+        let min = 1.0;
+        let max = -1.0;
+        const windowSize = Math.floor(state.audioBuffer.sampleRate / (bps * state.zoom)); 
+        
+        for (let j = 0; j < windowSize; j++) {
+            const val = data[sampleIdx + j];
+            if (val < min) min = val;
+            if (val > max) max = val;
+        }
+        if(isNaN(min)) min = 0; if(isNaN(max)) max = 0;
+
+        wCtx.fillRect(50 + min * amp, i, (max - min) * amp, 1);
+    }
+}
+
+function draw() {
+    ctx.fillStyle = getComputedStyle(document.body).getPropertyValue('--c-bg-main');
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    if (!state.audioBuffer) {
+        ctx.fillStyle = "rgba(255,255,255,0.1)";
+        ctx.font = "20px 'Segoe UI'";
+        ctx.textAlign = "center";
+        ctx.fillText("No Audio Loaded", canvas.width/2 + 25, canvas.height/2);
+        ctx.textAlign = "start";
+    }
+
+    const colWidth = (canvas.width - 50) / state.columns;
+    const totalHeight = state.bpl * state.zoom;
+    
+    if (waveformCanvas) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(0, 0, 50, canvas.height);
+        ctx.clip();
+        ctx.drawImage(waveformCanvas, -25, -state.scrollY); 
+        ctx.restore();
+
+        ctx.globalAlpha = 0.15;
+        ctx.drawImage(waveformCanvas, 0, 0, waveformCanvas.width, waveformCanvas.height, 50, -state.scrollY, canvas.width - 50, totalHeight);
+        ctx.globalAlpha = 1.0;
+    }
+
+    ctx.save();
+    ctx.translate(0, -state.scrollY);
+
+    const cGrid = getComputedStyle(document.body).getPropertyValue('--c-grid-line');
+    const cBeat = getComputedStyle(document.body).getPropertyValue('--c-beat-line');
+    
+    ctx.strokeStyle = cGrid;
+    ctx.lineWidth = 1;
+    
+    for (let i = 0; i <= state.columns; i++) {
+        const x = 50 + i * colWidth;
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, totalHeight);
+        ctx.stroke();
+    }
+
+    const totalBeats = state.bpl;
+    for (let i = 0; i <= totalBeats; i++) {
+        const y = i * state.zoom;
+        
+        ctx.strokeStyle = cBeat;
+        ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
+
+        if (i < totalBeats) {
+            ctx.strokeStyle = cGrid;
+            for (let s = 1; s < state.spb; s++) {
+                const sy = y + (s / state.spb) * state.zoom;
+                ctx.beginPath(); ctx.moveTo(50, sy); ctx.lineTo(canvas.width, sy); ctx.stroke();
+            }
+        }
+    }
+
+    const stepHeight = Math.max(state.zoom / state.quantizer, 5);
+    const cEvt = getComputedStyle(document.body).getPropertyValue('--c-event-bg');
+    const cEvtSel = getComputedStyle(document.body).getPropertyValue('--c-event-selected');
+
+    state.events.forEach(evt => {
+        const y = (evt.time * (state.bpm / 60)) * state.zoom;
+        const x = 50 + evt.column * colWidth;
+        const h = stepHeight; 
+        const w = colWidth;
+
+        const isSelected = state.selection.has(evt._uid);
+
+        ctx.fillStyle = isSelected ? cEvtSel : cEvt;
+        if(isSelected) {
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = cEvtSel;
+        } else {
+            ctx.shadowBlur = 0;
+        }
+
+        ctx.fillRect(x + 1, y, w - 2, h - 1); 
+        ctx.shadowBlur = 0; 
+        
+        ctx.fillStyle = "#ffffff";
+        ctx.font = "bold 10px 'Segoe UI', sans-serif";
+        
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(x + 1, y, w - 2, h - 1);
+        ctx.clip();
+        ctx.fillText(evt.type, x + 5, y + h/2 + 3);
+        ctx.restore();
+
+        if(evt.stacking) {
+            ctx.fillStyle = "#ffeb3b";
+            ctx.fillRect(x + w - 10, y + 2, 6, 6);
+        }
+    });
+
+    if (state.isBoxSelecting) {
+        ctx.fillStyle = "rgba(213, 0, 249, 0.2)";
+        ctx.strokeStyle = "#d500f9";
+        const r = state.boxSelectRect;
+        ctx.fillRect(r.x, r.y + state.scrollY, r.w, r.h); 
+        ctx.strokeRect(r.x, r.y + state.scrollY, r.w, r.h);
+    }
+
+    if (state.isPlaying || state.playbackTime > 0) {
+        const playY = (state.playbackTime * (state.bpm / 60)) * state.zoom;
+        ctx.strokeStyle = "#00e5ff";
+        ctx.lineWidth = 2;
+        ctx.shadowColor = "#00e5ff";
+        ctx.shadowBlur = 10;
+        ctx.beginPath();
+        ctx.moveTo(0, playY);
+        ctx.lineTo(canvas.width, playY);
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+    }
+
+    ctx.restore();
+}
+
+/**
+ * INTERACTION
+ */
+container.addEventListener('mousedown', (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+    const worldY = my + state.scrollY;
+    
+    if (e.button === 1 || mx < 50) {
+        state.isDragging = true;
+        state.dragMode = 'pan';
+        state.lastMouseY = my;
+        return;
+    }
+
+    const colWidth = (canvas.width - 50) / state.columns;
+    const col = Math.floor((mx - 50) / colWidth);
+    
+    const stepHeight = Math.max(state.zoom / state.quantizer, 5);
+
+    const hit = state.events.find(evt => {
+        const ey = (evt.time * (state.bpm / 60)) * state.zoom;
+        return col === evt.column && worldY >= ey && worldY <= ey + stepHeight;
+    });
+
+    if (hit) {
+        if (e.button === 0) { 
+            if (!e.shiftKey && !state.selection.has(hit._uid)) {
+                state.selection.clear();
+            }
+            state.selection.add(hit._uid);
+            
+            state.selectedEventType = hit.type;
+            const select = document.getElementById('event-type-select');
+            select.value = hit.type;
+
+            state.isDragging = true;
+            state.dragMode = 'move';
+            state.dragStart = { x: mx, y: worldY };
+        }
+    } else {
+        if (e.button === 0) {
+            if (!state.audioBuffer) {
+                return;
+            }
+
+            const rawTime = getTime(my);
+            const snapped = snapTime(rawTime);
+            
+            const y = (snapped * (state.bpm / 60)) * state.zoom;
+            
+            const overlap = state.events.find(ev => {
+                 const ey = (ev.time * (state.bpm / 60)) * state.zoom;
+                 return ev.column === col && Math.abs(ey - y) < stepHeight;
+            });
+
+            if (!overlap) {
+                const type = state.selectedEventType;
+                // FIX: Use current DOM params instead of default
+                const params = getCurrentToolParams(type);
+                
+                const def = EVENT_DEFS[type];
+                
+                // Also get top-level params
+                let curTarget = 0;
+                let curStacking = false;
+                const tgtInput = document.getElementById('prop-target');
+                if(tgtInput && !tgtInput.disabled) curTarget = parseInt(tgtInput.value) || 0;
+                const stkInput = document.getElementById('prop-stacking');
+                if(stkInput && !stkInput.disabled) curStacking = stkInput.checked;
+
+                const newEvt = {
+                    _uid: getUid(),
+                    time: snapped,
+                    column: col,
+                    type: type,
+                    params: params, 
+                    target: def.hideTarget ? 0 : curTarget,
+                    stacking: curStacking
+                };
+                
+                state.events.push(newEvt);
+                state.selection.clear();
+                state.selection.add(newEvt._uid);
+                state.isDragging = true;
+            }
+        } else if (e.button === 2) {
+            state.isBoxSelecting = true;
+            state.dragStart = { x: mx, y: my };
+            state.boxSelectRect = { x: mx, y: my, w: 0, h: 0 };
+        }
+    }
+    
+    renderDynamicControls();
+    draw();
+});
+
+window.addEventListener('mousemove', (e) => {
+    if (!state.isDragging && !state.isBoxSelecting) return;
+
+    const rect = canvas.getBoundingClientRect();
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+
+    if (state.dragMode === 'pan') {
+        const deltaY = my - state.lastMouseY;
+        state.scrollY -= deltaY;
+        if (state.scrollY < 0) state.scrollY = 0;
+        state.lastMouseY = my;
+        draw();
+        return;
+    }
+
+    const worldY = my + state.scrollY;
+
+    if (state.dragMode === 'move') {
+        // Ghost logic later
+    }
+    
+    if (state.isBoxSelecting) {
+        state.boxSelectRect.w = mx - state.dragStart.x;
+        state.boxSelectRect.h = my - state.dragStart.y;
+        draw();
+    }
+});
+
+window.addEventListener('mouseup', (e) => {
+    if (state.dragMode === 'pan') {
+        state.isDragging = false;
+        state.dragMode = null;
+        return;
+    }
+
+    const rect = canvas.getBoundingClientRect();
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+    const worldY = my + state.scrollY;
+
+    if (state.isDragging && state.dragMode === 'move') {
+        const dy = worldY - state.dragStart.y;
+        const dx = mx - state.dragStart.x;
+        
+        const colWidth = (canvas.width - 50) / state.columns;
+        const colDelta = Math.round(dx / colWidth);
+        const timeDelta = getTime(dy) - getTime(0); 
+        
+        if (Math.abs(dy) > 5 || Math.abs(dx) > colWidth/2) {
+             const bps = state.bpm/60;
+             const stepTime = 1 / bps / state.quantizer;
+             
+             const quantizedTimeDelta = Math.round(timeDelta / stepTime) * stepTime;
+             
+             const moves = [];
+             let valid = true;
+             
+             state.selection.forEach(uid => {
+                 const evt = state.events.find(ev => ev._uid === uid);
+                 const newTime = Math.max(0, evt.time + quantizedTimeDelta);
+                 const newCol = Math.max(0, Math.min(state.columns - 1, evt.column + colDelta));
+                 
+                 const collision = state.events.find(other => {
+                     if (state.selection.has(other._uid)) return false;
+                     const stepHeight = Math.max(state.zoom / state.quantizer, 5);
+                     
+                     if (other.column !== newCol) return false;
+                     const otherY = (other.time * (state.bpm/60)) * state.zoom;
+                     const newY = (newTime * (state.bpm/60)) * state.zoom;
+                     
+                     return Math.abs(otherY - newY) < stepHeight; 
+                 });
+                 
+                 if (collision) valid = false;
+                 moves.push({ evt, newTime, newCol });
+             });
+             
+             if (valid) {
+                 moves.forEach(m => {
+                     m.evt.time = m.newTime;
+                     m.evt.column = m.newCol;
+                 });
+             }
+        }
+        
+        state.isDragging = false;
+        state.dragMode = null;
+        renderDynamicControls(); 
+        draw();
+    }
+
+    if (state.isBoxSelecting) {
+        const r = state.boxSelectRect;
+        const rx = r.w < 0 ? r.x + r.w : r.x;
+        const ry = r.h < 0 ? r.y + r.h : r.y; 
+        const rw = Math.abs(r.w);
+        const rh = Math.abs(r.h);
+        
+        const worldTop = ry + state.scrollY;
+        const worldBottom = worldTop + rh;
+        
+        state.selection.clear();
+        
+        state.events.forEach(evt => {
+             const y = (evt.time * (state.bpm / 60)) * state.zoom;
+             const colWidth = (canvas.width - 50) / state.columns;
+             const x = 50 + evt.column * colWidth;
+             
+             const cx = x + colWidth/2;
+             const cy = y + 10;
+             
+             if (cx >= rx && cx <= rx + rw && cy >= worldTop && cy <= worldBottom) {
+                 state.selection.add(evt._uid);
+                 state.selectedEventType = evt.type;
+                 document.getElementById('event-type-select').value = evt.type;
+             }
+        });
+        
+        state.isBoxSelecting = false;
+        renderDynamicControls();
+        draw();
+    }
+});
+
+// Scroll Handling
+container.addEventListener('wheel', (e) => {
+    state.scrollY += e.deltaY;
+    if (state.scrollY < 0) state.scrollY = 0;
+    const maxH = state.bpl * state.zoom - container.clientHeight;
+    if (state.scrollY > maxH) state.scrollY = maxH;
+    draw();
+});
+
+// Context Menu
+canvas.addEventListener('contextmenu', e => e.preventDefault());
+
+/**
+ * KEYBOARD SHORTCUTS
+ */
+function handleKey(e) {
+    if (e.code === 'Space' && document.activeElement.tagName !== 'INPUT') {
+        e.preventDefault();
+        togglePlay();
+    }
+
+    // Removed Copy/Paste functionality per request
+    
+    if (e.key === 'Delete' || e.key === 'Backspace') {
+        if(document.activeElement.tagName !== 'INPUT') {
+            state.events = state.events.filter(ev => !state.selection.has(ev._uid));
+            state.selection.clear();
+            renderDynamicControls();
+            draw();
+        }
+    }
+}
+
+function stopPlayback() {
+    state.isPlaying = false;
+    state.playbackTime = 0;
+    if (state.audioSource) {
+        state.audioSource.stop();
+        state.audioSource = null;
+    }
+    document.getElementById('event-hud').classList.remove('active');
+    draw();
+}
+
+function togglePlay() {
+    if (state.isPlaying) {
+        state.isPlaying = false;
+        if (state.audioSource) {
+            state.audioSource.stop();
+            state.audioSource = null;
+        }
+        document.getElementById('event-hud').classList.remove('active');
+    } else {
+        state.isPlaying = true;
+        state.startTime = state.audioContext.currentTime - state.playbackTime;
+        
+        if (state.audioBuffer) {
+            state.audioSource = state.audioContext.createBufferSource();
+            state.audioSource.buffer = state.audioBuffer;
+            state.audioSource.connect(state.audioContext.destination);
+            state.audioSource.start(0, state.playbackTime);
+        }
+        
+        animate();
+    }
+}
+
+let hudTimeout;
+function updateHUD() {
+    const bps = state.bpm / 60;
+    const stepDuration = 1 / bps / state.quantizer;
+    
+    const activeEvt = state.events.find(ev => {
+        return state.playbackTime >= ev.time && state.playbackTime < ev.time + stepDuration;
+    });
+
+    const hud = document.getElementById('event-hud');
+    const hudName = hud.querySelector('.hud-name');
+    const hudTime = hud.querySelector('.hud-time');
+    const hudParams = hud.querySelector('.hud-params');
+
+    if (activeEvt) {
+        hud.classList.add('active');
+        clearTimeout(hudTimeout); // Keep alive
+        
+        hudName.textContent = activeEvt.type;
+        hudTime.textContent = `Time: ${activeEvt.time.toFixed(3)}s | Target: ${activeEvt.target}`;
+        
+        const paramStr = Object.entries(activeEvt.params)
+            .map(([k,v]) => `${k}: ${v}`)
+            .join('<br>');
+        hudParams.innerHTML = paramStr;
+    } else {
+        // Debounced hide
+        if (hud.classList.contains('active') && !hudTimeout) {
+            hudTimeout = setTimeout(() => {
+                hud.classList.remove('active');
+                hudTimeout = null;
+            }, 2000); // 2 second lingering
+        }
+    }
+}
+
+function animate() {
+    if (!state.isPlaying) return;
+    
+    const now = state.audioContext.currentTime;
+    state.playbackTime = now - state.startTime;
+    
+    const y = (state.playbackTime * (state.bpm / 60)) * state.zoom;
+    if (y > state.scrollY + canvas.height - 100) {
+        state.scrollY = y - 100;
+    }
+
+    updateHUD();
+    draw();
+    
+    const loopTime = (state.bpl / (state.bpm/60));
+    if (state.playbackTime >= loopTime) {
+        state.playbackTime = 0;
+        state.startTime = state.audioContext.currentTime;
+        if(state.audioSource) {
+            state.audioSource.stop();
+            state.audioSource = state.audioContext.createBufferSource();
+            state.audioSource.buffer = state.audioBuffer;
+            state.audioSource.connect(state.audioContext.destination);
+            state.audioSource.start(0, 0);
+        }
+    }
+    
+    requestAnimationFrame(animate);
+}
+
+function generateJSON() {
+    const sorted = [...state.events].sort((a, b) => {
+        if (Math.abs(a.time - b.time) > 0.0001) return a.time - b.time;
+        return a.column - b.column;
+    });
+
+    const exportData = {
+        bpm: state.bpm,
+        events: sorted.map(e => {
+            const fullParams = initializeParams(e.type);
+            Object.assign(fullParams, e.params);
+
+            const obj = {
+                time: parseFloat(e.time.toFixed(3)),
+                column: e.column,
+                type: e.type, 
+                ...fullParams,
+                target: e.target,
+                stacking: e.stacking
+            };
+            return obj;
+        })
+    };
+    return JSON.stringify(exportData, null, 2);
+}
+
+function exportJSON() {
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(generateJSON());
+    const downloadAnchorNode = document.createElement('a');
+    downloadAnchorNode.setAttribute("href", dataStr);
+    downloadAnchorNode.setAttribute("download", "chart.json");
+    document.body.appendChild(downloadAnchorNode);
+    downloadAnchorNode.click();
+    downloadAnchorNode.remove();
+}
+
+// Start
+initUI();
+resize();
+</script>
+</body>
+</html>
