@@ -341,10 +341,14 @@
 
             <!-- Actions -->
             <button id="btn-export" class="embed-hidden">Export JSON</button>
+            <button id="btn-import" class="embed-hidden">Import JSON</button>
+            <input type="file" id="file-import" accept=".json" style="display:none;">
+
             <button id="btn-save" class="embed-only hidden">Save</button>
+            <button id="btn-exit" class="btn-danger">Exit without saving</button>
 
             <hr style="border-color: var(--c-border); margin: 15px 0;" class="embed-hidden">
-            <button id="btn-clear" class="btn-danger embed-hidden">Clear All Events</button>
+            <button id="btn-clear" class="btn-danger">Clear All Events</button>
         </div>
     </div>
 
@@ -372,6 +376,18 @@
             </div>
         </div>
     </div>
+    
+    <div id="confirm-modal2" class="modal-overlay hidden">
+        <div class="modal-box">
+            <h3 style="border:none; color: var(--c-accent);">Warning</h3>
+            <p style="margin-bottom: 10px; color: #fff;">Are you sure you want to exit without saving?</p>
+            <p style="font-size: 11px; color: var(--c-text-muted); margin-top: 0;">This action cannot be undone.</p>
+            <div class="modal-actions">
+                <button id="modal-confirm" class="btn-danger">Yes, Exit</button>
+                <button id="modal-cancel" style="background: #333;">Cancel</button>
+            </div>
+        </div>
+    </div>
 
 <script>
 /**
@@ -385,6 +401,29 @@ const EFFECTS = ['color', 'fisheye', 'whirl', 'pixelate', 'mosaic', 'brightness'
 const urlParams = new URLSearchParams(window.location.search);
 const isEmbed = urlParams.get('embed') === 'true';
 const isDebug = urlParams.get('debug') === 'true';
+
+// Import Button Logic
+const importBtn = document.getElementById('btn-import');
+const fileImportInput = document.getElementById('file-import');
+
+importBtn.addEventListener('click', () => fileImportInput.click());
+
+fileImportInput.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+        try {
+            const json = JSON.parse(event.target.result);
+            importEvents(json);
+            fileImportInput.value = ''; // Reset
+        } catch (err) {
+            alert('Invalid JSON file');
+            console.error(err);
+        }
+    };
+    reader.readAsText(file);
+});
 
 // Definition of all events based on prompt
 const EVENT_DEFS = {
@@ -599,6 +638,16 @@ function initUI() {
             });
         } catch(e) { console.error("Failed to decode audio param", e); }
     }
+    
+    // Base64 EventList param
+    const b64EventList = urlParams.get('eventList');
+    if(b64EventList) {
+        try {
+            const binary = atob(b64EventList);
+            const jsonEvents = JSON.parse(binary);
+            importEvents(jsonEvents);
+        } catch(e) { console.error("Failed to decode eventList param", e); }
+    }
 
     // Actions
     document.getElementById('btn-export').onclick = exportJSON;
@@ -614,16 +663,31 @@ function initUI() {
         modal.classList.remove('hidden');
     };
 
-    document.getElementById('modal-cancel').onclick = () => {
+    modal.querySelector('#modal-cancel').onclick = () => {
         modal.classList.add('hidden');
     };
 
-    document.getElementById('modal-confirm').onclick = () => {
+    modal.querySelector('#modal-confirm').onclick = () => {
         state.events = [];
         state.selection.clear();
         renderDynamicControls();
         draw();
         modal.classList.add('hidden');
+    };
+
+    const modal2 = document.getElementById('confirm-modal2');
+    
+    document.getElementById('btn-exit').onclick = () => {
+        modal2.classList.remove('hidden');
+    };
+
+    modal2.querySelector('#modal-cancel').onclick = () => {
+        modal2.classList.add('hidden');
+    };
+
+    modal2.querySelector('#modal-confirm').onclick = () => {
+        window.parent.postMessage({ type: 'exit' }, '*');
+        modal2.classList.add('hidden');
     };
     
     // Delete Single/Selected Logic
@@ -1467,23 +1531,20 @@ function generateJSON() {
         return a.column - b.column;
     });
 
-    const exportData = {
-        bpm: state.bpm,
-        events: sorted.map(e => {
-            const fullParams = initializeParams(e.type);
-            Object.assign(fullParams, e.params);
+    const exportData = sorted.map(e => {
+        const fullParams = initializeParams(e.type);
+        Object.assign(fullParams, e.params);
 
-            const obj = {
-                time: parseFloat(e.time.toFixed(3)),
-                column: e.column,
-                type: e.type, 
-                ...fullParams,
-                target: e.target,
-                stacking: e.stacking
-            };
-            return obj;
-        })
-    };
+        const obj = {
+            time: parseFloat(e.time.toFixed(3)),
+            column: e.column,
+            type: e.type, 
+            ...fullParams,
+            target: e.target,
+            stacking: e.stacking
+        };
+        return obj;
+    });
     return JSON.stringify(exportData, null, 2);
 }
 
@@ -1495,6 +1556,81 @@ function exportJSON() {
     document.body.appendChild(downloadAnchorNode);
     downloadAnchorNode.click();
     downloadAnchorNode.remove();
+}
+
+/**
+ * IMPORT EVENTS
+ * Accepts either a JSON string or an array of event objects (like generateJSON output).
+ * It will sanitize, assign internal _uid values, apply defaults for missing params
+ * and sort by time then column. It avoids stacking collisions by skipping events
+ * that would overlap an already-imported event in the same column/row.
+ */
+function importEvents(input) {
+    let arr;
+    try {
+        if (typeof input === 'string') arr = JSON.parse(input);
+        else arr = Array.isArray(input) ? input.slice(0) : null;
+    } catch (e) {
+        console.error('importEvents: invalid JSON', e);
+        return false;
+    }
+    if (!Array.isArray(arr)) {
+        console.error('importEvents: expected array');
+        return false;
+    }
+
+    // Helper to check stacking collision for a given time & column using current newEvents
+    const stepHeight = Math.max(state.zoom / state.quantizer, 5);
+    const collisionCheck = (newEvents, time, column) => {
+        // compute y coordinate
+        const y = (time * (state.bpm / 60)) * state.zoom;
+        for (const ev of newEvents) {
+            if (ev.column !== column) continue;
+            const ey = (ev.time * (state.bpm / 60)) * state.zoom;
+            if (Math.abs(ey - y) < stepHeight) return true;
+        }
+        return false;
+    };
+
+    const newEvents = [];
+    for (const item of arr) {
+        if (!item || typeof item !== 'object') continue;
+        const time = Math.max(0, parseFloat(item.time) || 0);
+        const column = Math.max(0, parseInt(item.column) || 0);
+        const type = item.type || item.name || Object.keys(EVENT_DEFS)[0];
+
+        const def = EVENT_DEFS[type] || {};
+        // Build params from def keys (generateJSON exported them top-level)
+        const params = initializeParams(type);
+        for (const k of Object.keys(def)) {
+            if (k.startsWith('_') || k === 'hideTarget' || k === 'comment') continue;
+            if (item[k] !== undefined) params[k] = item[k];
+        }
+
+        const target = def.hideTarget ? 0 : (item.target !== undefined ? parseInt(item.target) || 0 : 0);
+        const stacking = !!item.stacking;
+
+        // Avoid stacking collisions with already-accepted new events
+        if (collisionCheck(newEvents, time, column)) {
+            // skip this event to avoid stacking
+            console.warn('importEvents: skipped overlapping event at', time, 'col', column, 'type', type);
+            continue;
+        }
+
+        newEvents.push({ _uid: getUid(), time, column, type, params, target, stacking });
+    }
+
+    // Sort by time then column
+    newEvents.sort((a, b) => {
+        if (Math.abs(a.time - b.time) > 0.0001) return a.time - b.time;
+        return a.column - b.column;
+    });
+
+    state.events = newEvents;
+    state.selection.clear();
+    renderDynamicControls();
+    draw();
+    return true;
 }
 
 // Start
