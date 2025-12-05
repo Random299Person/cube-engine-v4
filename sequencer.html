@@ -625,19 +625,25 @@ function initUI() {
     
     // Base64 Audio param
     const b64Audio = urlParams.get('audio');
-    if(b64Audio) {
+    if (b64Audio) {
         try {
-            const binary = atob(b64Audio);
-            const len = binary.length;
-            const bytes = new Uint8Array(len);
-            for (let i = 0; i < len; i++) bytes[i] = binary.charCodeAt(i);
-            state.audioContext.decodeAudioData(bytes.buffer, (buffer) => {
-                state.audioBuffer = buffer;
-                generateWaveformBitmap();
-                draw();
-            });
-        } catch(e) { console.error("Failed to decode audio param", e); }
+            const dataUrl = decodeURIComponent(b64Audio);  // Full data: URL
+
+            fetch(dataUrl)
+                .then(res => res.arrayBuffer())
+                .then(buffer => {
+                    state.audioContext.decodeAudioData(buffer, decoded => {
+                        state.audioBuffer = decoded;
+                        generateWaveformBitmap();
+                        draw();
+                    });
+                })
+                .catch(err => console.error("Decode failed", err));
+        } catch (e) {
+            console.error("Failed to decode data URL", e);
+        }
     }
+
     
     // Base64 EventList param
     const b64EventList = urlParams.get('eventList');
