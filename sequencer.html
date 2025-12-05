@@ -643,7 +643,6 @@ function initUI() {
             console.error("Failed to decode data URL", e);
         }
     }
-
     
     // Base64 EventList param
     const b64EventList = urlParams.get('eventList');
@@ -722,6 +721,21 @@ function initUI() {
         generateWaveformBitmap();
         draw();
     };
+    
+    window.addEventListener('message', function(event) {
+        const msg = event.data;
+        
+        if (msg.type === 'loadEvents') {
+            importEvents(msg.data);
+        } else if (msg.type === 'loadAudio') {
+            const arrayBuffer = msg.data;
+            state.audioContext.decodeAudioData(arrayBuffer, (buffer) => {
+                state.audioBuffer = buffer;
+                generateWaveformBitmap();
+                draw();
+            });
+        }
+    });
 
     // Global Input
     window.addEventListener('keydown', handleKey);
