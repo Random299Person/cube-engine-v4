@@ -426,7 +426,7 @@
 /**
  * VERSION CONTROL
  */
-var ce_version = "v0.0.0";
+var ce_version = "v0.0.1";
 
 /**
  * DATA & CONFIGURATION
@@ -790,12 +790,22 @@ function initUI() {
         if (msg.type === 'loadEvents') {
             importEvents(msg.data);
         } else if (msg.type === 'loadAudio') {
-            const arrayBuffer = msg.data.arrayBuffer();
-            state.audioContext.decodeAudioData(arrayBuffer, (buffer) => {
-                state.audioBuffer = buffer;
-                generateWaveformBitmap();
-                draw();
-            });
+            Promise.resolve().then(() => {
+                if (typeof msg.data === 'string') {
+                    // It's a Data URI (string)
+                    return fetch(msg.data).then(r => r.arrayBuffer());
+                } else if (msg.data.arrayBuffer) {
+                    // It's a Blob/File
+                    return msg.data.arrayBuffer();
+                }
+                throw new Error("Unknown audio data format");
+            }).then(arrayBuffer => {
+                state.audioContext.decodeAudioData(arrayBuffer, (buffer) => {
+                    state.audioBuffer = buffer;
+                    generateWaveformBitmap();
+                    draw();
+                }, (err) => console.error("Audio decode error:", err));
+            }).catch(err => console.error("Audio load error:", err));
         }
     });
 
