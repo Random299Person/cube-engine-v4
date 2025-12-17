@@ -38,11 +38,37 @@
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             height: 100vh;
             display: flex;
+            flex-direction: column; /* Changed to column for title bar */
             overflow: hidden;
             font-size: 12px;
         }
 
-        /* --- Layout --- */
+        /* --- Title Bar --- */
+        #title-bar {
+            height: 28px;
+            background-color: var(--c-bg-panel);
+            border-bottom: 1px solid var(--c-border);
+            display: flex;
+            align-items: center;
+            padding: 0 15px;
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--c-text-muted);
+            flex-shrink: 0;
+            letter-spacing: 0.5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            z-index: 50;
+        }
+
+        /* --- Editor Layout Wrapper --- */
+        #editor-layout {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* --- Sidebar --- */
         #sidebar {
             width: 300px;
             background-color: var(--c-bg-panel);
@@ -52,6 +78,7 @@
             flex-shrink: 0;
             z-index: 10;
             box-shadow: 4px 0 15px rgba(0,0,0,0.3);
+            height: 100%;
         }
 
         #edit-panel {
@@ -259,108 +286,114 @@
 </head>
 <body>
 
-    <div id="sidebar">
-        <!-- TOP: Edit Menu -->
-        <div id="edit-panel">
-            <h3>Edit Event</h3>
-            <div class="control-group">
-                <label>Event Type</label>
-                <select id="event-type-select"></select>
-            </div>
-            <div id="dynamic-controls"></div>
-            
-            <hr style="border-color: var(--c-border); margin: 20px 0;">
-            
-            <div class="control-group" id="grp-target">
-                <label>Target ID</label>
-                <input type="number" id="prop-target" min="0" step="1" value="0">
-            </div>
-            <div class="checkbox-group" id="grp-stacking">
-                <input type="checkbox" id="prop-stacking">
-                <label for="prop-stacking">Stacking</label>
-            </div>
-            
-            <hr style="border-color: var(--c-border); margin: 20px 0;">
-            <button id="btn-delete-event" class="btn-danger" style="margin-top: 0;">Delete Event</button>
-        </div>
-
-        <!-- BOTTOM: Settings Menu -->
-        <div id="settings-panel">
-            <h3>Settings</h3>
-
-            <!-- Transport Controls -->
-            <div class="transport-bar">
-                <button id="btn-play" class="btn-play">▶ Play</button>
-                <button id="btn-stop" class="btn-stop">⏹ Stop</button>
-            </div>
-
-            <!-- Zoom Controls -->
-            <div class="control-group">
-                <label>Vertical Zoom</label>
-                <div style="display: flex; gap: 5px;">
-                    <button id="btn-zoom-out" class="btn-zoom" style="margin-top:0; font-size: 14px;">−</button>
-                    <button id="btn-zoom-in" class="btn-zoom" style="margin-top:0; font-size: 14px;">+</button>
-                </div>
-            </div>
-            
-            <!-- Audio -->
-            <div class="control-group embed-hidden">
-                <label>Audio File</label>
-                <input type="file" id="audio-input" accept="audio/*">
-            </div>
-
-            <!-- BPM -->
-            <div class="control-group embed-hidden">
-                <label>BPM</label>
-                <input type="number" id="set-bpm" value="140.00" step="0.01">
-            </div>
-
-            <!-- Steps Per Beat -->
-            <div class="control-group embed-hidden">
-                <label>Steps Per Beat</label>
-                <input type="number" id="set-spb" value="4" step="1" min="1">
-            </div>
-
-            <!-- Beats Per Loop -->
-            <div class="control-group embed-hidden">
-                <label>Beats Per Loop</label>
-                <input type="number" id="set-bpl" value="16" step="1" min="1">
-            </div>
-
-            <!-- Columns -->
-            <div class="control-group">
-                <label>Columns</label>
-                <input type="number" id="set-cols" value="4" step="1" min="1">
-            </div>
-
-            <!-- Quantizer -->
-            <div class="control-group">
-                <label>Quantizer (1/x)</label>
-                <input type="number" id="set-quant" value="4" step="1" min="1">
-            </div>
-
-            <!-- Actions -->
-            <button id="btn-export" class="embed-hidden">Export JSON</button>
-            <button id="btn-import" class="embed-hidden">Import JSON</button>
-            <input type="file" id="file-import" accept=".json" style="display:none;">
-
-            <button id="btn-save" class="embed-only hidden">Save</button>
-            <button id="btn-exit" class="btn-danger">Exit without saving</button>
-
-            <hr style="border-color: var(--c-border); margin: 15px 0;" class="embed-hidden">
-            <button id="btn-clear" class="btn-danger">Clear All Events</button>
-        </div>
+    <div id="title-bar">
+        <!-- Title Text will be populated by JS -->
     </div>
 
-    <div id="main-view">
-        <div id="event-hud">
-            <h4>Active Event</h4>
-            <div class="hud-name"></div>
-            <div class="hud-time"></div>
-            <div class="hud-params"></div>
+    <div id="editor-layout">
+        <div id="sidebar">
+            <!-- TOP: Edit Menu -->
+            <div id="edit-panel">
+                <h3>Edit Event</h3>
+                <div class="control-group">
+                    <label>Event Type</label>
+                    <select id="event-type-select"></select>
+                </div>
+                <div id="dynamic-controls"></div>
+                
+                <hr style="border-color: var(--c-border); margin: 20px 0;">
+                
+                <div class="control-group" id="grp-target">
+                    <label>Target ID</label>
+                    <input type="number" id="prop-target" min="0" step="1" value="0">
+                </div>
+                <div class="checkbox-group" id="grp-stacking">
+                    <input type="checkbox" id="prop-stacking">
+                    <label for="prop-stacking">Stacking</label>
+                </div>
+                
+                <hr style="border-color: var(--c-border); margin: 20px 0;">
+                <button id="btn-delete-event" class="btn-danger" style="margin-top: 0;">Delete Event</button>
+            </div>
+
+            <!-- BOTTOM: Settings Menu -->
+            <div id="settings-panel">
+                <h3>Settings</h3>
+
+                <!-- Transport Controls -->
+                <div class="transport-bar">
+                    <button id="btn-play" class="btn-play">▶ Play</button>
+                    <button id="btn-stop" class="btn-stop">⏹ Stop</button>
+                </div>
+
+                <!-- Zoom Controls -->
+                <div class="control-group">
+                    <label>Vertical Zoom</label>
+                    <div style="display: flex; gap: 5px;">
+                        <button id="btn-zoom-out" class="btn-zoom" style="margin-top:0; font-size: 14px;">−</button>
+                        <button id="btn-zoom-in" class="btn-zoom" style="margin-top:0; font-size: 14px;">+</button>
+                    </div>
+                </div>
+                
+                <!-- Audio -->
+                <div class="control-group embed-hidden">
+                    <label>Audio File</label>
+                    <input type="file" id="audio-input" accept="audio/*">
+                </div>
+
+                <!-- BPM -->
+                <div class="control-group embed-hidden">
+                    <label>BPM</label>
+                    <input type="number" id="set-bpm" value="140.00" step="0.01">
+                </div>
+
+                <!-- Steps Per Beat -->
+                <div class="control-group embed-hidden">
+                    <label>Steps Per Beat</label>
+                    <input type="number" id="set-spb" value="4" step="1" min="1">
+                </div>
+
+                <!-- Beats Per Loop -->
+                <div class="control-group embed-hidden">
+                    <label>Beats Per Loop</label>
+                    <input type="number" id="set-bpl" value="16" step="1" min="1">
+                </div>
+
+                <!-- Columns -->
+                <div class="control-group">
+                    <label>Columns</label>
+                    <input type="number" id="set-cols" value="4" step="1" min="1">
+                </div>
+
+                <!-- Quantizer -->
+                <div class="control-group">
+                    <label>Quantizer (1/x)</label>
+                    <input type="number" id="set-quant" value="4" step="1" min="1">
+                </div>
+
+                <!-- Actions -->
+                <button id="btn-export" class="embed-hidden">Export JSON</button>
+                <button id="btn-import" class="embed-hidden">Import JSON</button>
+                <input type="file" id="file-import" accept=".json" style="display:none;">
+
+                <button id="btn-save" class="embed-only hidden">Save</button>
+                <button id="btn-exit" class="embed-only hidden btn-danger">Exit without saving</button>
+
+                <hr style="border-color: var(--c-border); margin: 15px 0;">
+                <button id="btn-clear" class="btn-danger">Clear All Events</button>
+            </div>
         </div>
-        <div id="grid-container">
-            <canvas id="grid-canvas"></canvas>
+
+        <div id="main-view">
+            <div id="event-hud">
+                <h4>Active Event</h4>
+                <div class="hud-name"></div>
+                <div class="hud-time"></div>
+                <div class="hud-params"></div>
+            </div>
+            <div id="grid-container">
+                <canvas id="grid-canvas"></canvas>
+            </div>
         </div>
     </div>
 
@@ -390,6 +423,11 @@
     </div>
 
 <script>
+/**
+ * VERSION CONTROL
+ */
+var ce_version = "v0.0.0";
+
 /**
  * DATA & CONFIGURATION
  */
@@ -427,64 +465,77 @@ fileImportInput.addEventListener('change', (e) => {
 
 // Definition of all events based on prompt
 const EVENT_DEFS = {
-    // Animation
-    "Switch costume": { costume: "string" },
-    "Play Animation": { animation: "string", fps: "number", start: "string", looped: "boolean", _defaults: { fps: 24 } },
-    "Stop Animation": {},
+    // ==ANIMATION==
+    "Switch costume": { costume: "string", comment: "Switches the costume. Self-explanatory isn't it?" },
+    "Play Animation": { animation: "string", fps: "number", start: "string", looped: "boolean", _defaults: { fps: 24 }, comment: "Iterates through each frame from the provided costume folder, starting over once completed." },
+    "Stop Animation": { comment: "Stops the current animation" },
 
-    // Effects
-    "Set Effect": { effect: "effect", value: "number" },
-    "Change Effect": { effect: "effect", delta: "number" },
-    "Reset Effect": { effect: "effect" },
-    "Clear All Effects": {},
+    // ==EFFECTS==
+    "Set Effect": { effect: "effect", value: "number", comment: "Sets a visual effect on the object." },
+    "Change Effect": { effect: "effect", delta: "number", comment: "Changes a visual effect applied on the object." },
+    "Reset Effect": { effect: "effect", comment: "Clears a target effect from the object." },
+    "Clear All Effects": { comment: "Clears all effect from the object." },
 
-    // Motion
-    "Set Position": { x: "number", y: "number" },
-    "Change Position": { x: "number", y: "number" },
-    "Reset Position": {},
-    "Set X Position": { x: "number" },
-    "Change X Position": { x: "number" },
-    "Reset X Position": {},
-    "Set Y Position": { y: "number" },
-    "Change Y Position": { y: "number" },
-    "Reset Y Position": {},
-    "Set Direction": { direction: "number", _defaults: { direction: 90 } },
-    "Change Direction": { direction: "number" },
-    "Reset Direction": {},
-    "Set Size": { size: "number", _defaults: { size: 70 } },
-    "Change Size": { size: "number" },
-    "Set Stretch": { x: "number", y: "number", _defaults: { x: 100, y: 100 } },
-    "Change Stretch": { x: "number", y: "number" },
-    "Reset Stretch": {},
-    "Set X Stretch": { x: "number", _defaults: { x: 100 } },
-    "Change X Stretch": { x: "number" },
-    "Reset X Stretch": {},
-    "Set Y Stretch": { y: "number", _defaults: { y: 100 } },
-    "Change Y Stretch": { y: "number" },
-    "Reset Y Stretch": {},
+    // ==MOTION==
+    "Set Position": { x: "number", y: "number", comment: "Sets the position of the object." },
+    "Change Position": { x: "number", y: "number", comment: "Translates the position of the object on both axes." },
+    "Reset Position": { comment: "Resets the object's position." },
+    
+    "Set X Position": { x: "number", comment: "Set X Position" },
+    "Change X Position": { x: "number", comment: "Translates the position of the object on the X axis." },
+    "Reset X Position": { comment: "Resets the object's X position." },
+    
+    "Set Y Position": { y: "number", comment: "Set Y Position" },
+    "Change Y Position": { y: "number", comment: "Translates the position of the object on the Y axis." },
+    "Reset Y Position": { comment: "Resets the object's Y position." },
+    
+    "Set Direction": { direction: "number", _defaults: { direction: 90 }, comment: "Sets the direction of the object." },
+    "Change Direction": { direction: "number", comment: "Rotates the object a set number of degrees clockwise." },
+    "Reset Direction": { comment: "Resets the object's direction back to 90 degrees." },
+    
+    "Set Size": { size: "number", _defaults: { size: 70 }, comment: "Sets the size of the object." },
+    "Change Size": { size: "number", comment: "Changes the object's size." },
+    
+    "Set Stretch": { x: "number", y: "number", _defaults: { x: 100, y: 100 }, comment: "Sets the stretch of the object." },
+    "Change Stretch": { x: "number", y: "number", comment: "Changes the stretch of the object." },
+    "Reset Stretch": { comment: "Resets the object's stretch." },
+    
+    "Set X Stretch": { x: "number", _defaults: { x: 100 }, comment: "Sets the X stretch of the object." },
+    "Change X Stretch": { x: "number", comment: "Changes the stretch of the object on the X axis." },
+    "Reset X Stretch": { comment: "Resets the object's stretch X." },
+    
+    "Set Y Stretch": { y: "number", _defaults: { y: 100 }, comment: "Sets the Y stretch of the object." },
+    "Change Y Stretch": { y: "number", comment: "Changes the stretch of the object on the Y axis." },
+    "Reset Y Stretch": { comment: "Resets the object's stretch Y." },
 
-    // Tweening
-    "Tween Position": { x: "number", y: "number", duration: "number", tweenMode: "tweenMode", _defaults: { duration: 1 } },
-    "Cancel Tween Position": { x: "number", y: "number" }, 
-    "Tween X Position": { x: "number", duration: "number", tweenMode: "tweenMode", _defaults: { duration: 1 } },
-    "Cancel Tween X Position": {},
-    "Tween Y Position": { y: "number", duration: "number", tweenMode: "tweenMode", _defaults: { duration: 1 } },
-    "Cancel Tween Y Position": {},
-    "Tween Direction": { direction: "number", duration: "number", tweenMode: "tweenMode", _defaults: { direction: 90, duration: 1 } },
-    "Cancel Tween Direction": {},
-    "Tween Size": { size: "number", duration: "number", tweenMode: "tweenMode", _defaults: { size: 70, duration: 1 } },
-    "Cancel Tween Size": { size: "number" }, 
-    "Tween Stretch": { x: "number", y: "number", duration: "number", tweenMode: "tweenMode", _defaults: { x: 100, y: 100, duration: 1 } },
-    "Tween X Stretch": { x: "number", duration: "number", tweenMode: "tweenMode", _defaults: { x: 100, duration: 1 } },
-    "Tween Y Stretch": { y: "number", duration: "number", tweenMode: "tweenMode", _defaults: { y: 100, duration: 1 } },
-    "Cancel Tween Stretch": {},
-    "Cancel Tween X Stretch": { x: "number" },
-    "Cancel Tween Y Stretch": { y: "number" },
+    // ==TWEENING==
+    "Tween Position": { x: "number", y: "number", duration: "number", tweenMode: "tweenMode", _defaults: { duration: 1, tweenMode: "linear-in out" }, comment: "Tweens the object to a position." },
+    "Cancel Tween Position": { x: "number", y: "number", comment: "Cancels the \"Tween Position\" Event" }, 
+    
+    "Tween X Position": { x: "number", duration: "number", tweenMode: "tweenMode", _defaults: { duration: 1, tweenMode: "linear-in out" }, comment: "Tweens the X position of the object." },
+    "Cancel Tween X Position": { comment: "Cancels the \"Tween X Position\" Event" },
+    
+    "Tween Y Position": { y: "number", duration: "number", tweenMode: "tweenMode", _defaults: { duration: 1, tweenMode: "linear-in out" }, comment: "Tweens the Y position of the object." },
+    "Cancel Tween Y Position": { comment: "Cancels the \"Tween Y Position\" Event" },
+    
+    "Tween Direction": { direction: "number", duration: "number", tweenMode: "tweenMode", _defaults: { direction: 90, duration: 1, tweenMode: "linear-in out" }, comment: "Tweens the direction of the object." },
+    "Cancel Tween Direction": { comment: "Cancels the \"Tween Direction\" Event" },
+    
+    "Tween Size": { size: "number", duration: "number", tweenMode: "tweenMode", _defaults: { size: 70, duration: 1, tweenMode: "linear-in out" }, comment: "Tweens the size of the object." },
+    "Cancel Tween Size": { size: "number", comment: "Cancels the \"Tween Size\" Event" }, 
+    
+    "Tween Stretch": { x: "number", y: "number", duration: "number", tweenMode: "tweenMode", _defaults: { x: 100, y: 100, duration: 1, tweenMode: "linear-in out" }, comment: "Tweens the X-axis of the stretch." },
+    "Tween X Stretch": { x: "number", duration: "number", tweenMode: "tweenMode", _defaults: { x: 100, duration: 1, tweenMode: "linear-in out" }, comment: "Tweens the X-axis of the stretch." },
+    "Tween Y Stretch": { y: "number", duration: "number", tweenMode: "tweenMode", _defaults: { y: 100, duration: 1, tweenMode: "linear-in out" }, comment: "Tweens the Y-axis of the stretch." },
+    "Cancel Tween Stretch": { comment: "Cancels the \"Tween Stretch\" Event" },
+    "Cancel Tween X Stretch": { x: "number", comment: "Cancels the \"Cancel Tween Stretch X\" Event" },
+    "Cancel Tween Y Stretch": { y: "number", comment: "Cancels the \"Cancel Tween Stretch Y\" Event" },
 
-    // Events
-    "Broadcast Message": { name: "string", data: "string", hideTarget: true }, 
-    "Set Variable": { name: "string", value: "string", hideTarget: true },
-    "Change Variable": { name: "string", increment: "number", hideTarget: true },
+    // ==EVENTS==
+    "Broadcast Message": { name: "string", data: "string", hideTarget: true, comment: "Broadcasts the target message." },
+    "Broadcast Advanced Message": { name: "string", data: "string", hideTarget: true, comment: "Broadcasts the target message using advanced messages." },
+    "Set Variable": { name: "string", value: "string", hideTarget: false, comment: "Sets the provided variable to the provided value." },
+    "Change Variable": { name: "string", increment: "number", hideTarget: false, comment: "Changes the provided variable by the provided increment." },
     
     // Example from prompt
     "Example Event": { newX: "number", newY: "number", layer: "int", message: "string", override: "boolean", tweenMode: "tweenMode", effect: "effect", hideTarget: true, comment: "Lorem ipsum" }
@@ -500,7 +551,7 @@ const state = {
     
     events: [], // Array of { time, column, type, params: {}, target, stacking, _uid }
     selection: new Set(), // Set of _uids
-    // clipboard: [], // Removed clipboard support
+    clipboard: [], // Array of events for copy/paste
     
     selectedEventType: "Set Position",
     
@@ -521,7 +572,15 @@ const state = {
     dragStart: { x: 0, y: 0 },
     dragMode: null, // 'move', 'select', 'pan'
     boxSelectRect: { x: 0, y: 0, w: 0, h: 0 },
-    lastMouseY: 0
+    lastMouseY: 0,
+    
+    // Sidebar interaction flags
+    didPan: false,
+    isSidebarAction: false,
+    panStartY: 0,
+
+    // Logic for Shift-Click actions
+    shiftPending: false,
 };
 
 // Add UID to events
@@ -550,6 +609,9 @@ function initializeParams(type) {
  * UI INITIALIZATION
  */
 function initUI() {
+    // Set Title
+    document.getElementById('title-bar').innerText = `Cube Engine V4 Sequencer (${ce_version})`;
+
     // Populate Event Select
     const select = document.getElementById('event-type-select');
     Object.keys(EVENT_DEFS).forEach(key => {
@@ -724,11 +786,11 @@ function initUI() {
     
     window.addEventListener('message', function(event) {
         const msg = event.data;
-        
+
         if (msg.type === 'loadEvents') {
             importEvents(msg.data);
         } else if (msg.type === 'loadAudio') {
-            const arrayBuffer = msg.data;
+            const arrayBuffer = msg.data.arrayBuffer();
             state.audioContext.decodeAudioData(arrayBuffer, (buffer) => {
                 state.audioBuffer = buffer;
                 generateWaveformBitmap();
@@ -1065,8 +1127,14 @@ function generateWaveformBitmap() {
 }
 
 function draw() {
+    // 1. Clear Main Background
     ctx.fillStyle = getComputedStyle(document.body).getPropertyValue('--c-bg-main');
     ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // 2. Draw Scrollbar Area Background (0 - 50px)
+    // Lighter background to look like a scrollbar track
+    ctx.fillStyle = "#16102e"; 
+    ctx.fillRect(0, 0, 50, canvas.height);
 
     if (!state.audioBuffer) {
         ctx.fillStyle = "rgba(255,255,255,0.1)";
@@ -1079,7 +1147,9 @@ function draw() {
     const colWidth = (canvas.width - 50) / state.columns;
     const totalHeight = state.bpl * state.zoom;
     
+    // 3. Draw Waveforms
     if (waveformCanvas) {
+        // Draw Scrollbar Waveform (Clipped to left 50px)
         ctx.save();
         ctx.beginPath();
         ctx.rect(0, 0, 50, canvas.height);
@@ -1087,6 +1157,7 @@ function draw() {
         ctx.drawImage(waveformCanvas, -25, -state.scrollY); 
         ctx.restore();
 
+        // Draw Main Background Waveform (Translucent)
         ctx.globalAlpha = 0.15;
         ctx.drawImage(waveformCanvas, 0, 0, waveformCanvas.width, waveformCanvas.height, 50, -state.scrollY, canvas.width - 50, totalHeight);
         ctx.globalAlpha = 1.0;
@@ -1098,6 +1169,7 @@ function draw() {
     const cGrid = getComputedStyle(document.body).getPropertyValue('--c-grid-line');
     const cBeat = getComputedStyle(document.body).getPropertyValue('--c-beat-line');
     
+    // 4. Draw Columns
     ctx.strokeStyle = cGrid;
     ctx.lineWidth = 1;
     
@@ -1109,6 +1181,7 @@ function draw() {
         ctx.stroke();
     }
 
+    // 5. Draw Beats
     const totalBeats = state.bpl;
     for (let i = 0; i <= totalBeats; i++) {
         const y = i * state.zoom;
@@ -1126,6 +1199,7 @@ function draw() {
         }
     }
 
+    // 6. Draw Events
     const stepHeight = Math.max(state.zoom / state.quantizer, 5);
     const cEvt = getComputedStyle(document.body).getPropertyValue('--c-event-bg');
     const cEvtSel = getComputedStyle(document.body).getPropertyValue('--c-event-selected');
@@ -1152,19 +1226,33 @@ function draw() {
         ctx.fillStyle = "#ffffff";
         ctx.font = "bold 10px 'Segoe UI', sans-serif";
         
+        // Clip text area
         ctx.save();
         ctx.beginPath();
         ctx.rect(x + 1, y, w - 2, h - 1);
         ctx.clip();
+        
+        // Draw Type
         ctx.fillText(evt.type, x + 5, y + h/2 + 3);
-        ctx.restore();
 
+        // Draw Target ID (Right Aligned)
+        ctx.fillStyle = "rgba(255,255,255,0.7)";
+        ctx.textAlign = "right";
+        const targetStr = evt.target.toString();
+        ctx.fillText(targetStr, x + w - 5, y + 10);
+        
+        // Stacking Indicator (Beside Target ID)
         if(evt.stacking) {
+            const tw = ctx.measureText(targetStr).width;
             ctx.fillStyle = "#ffeb3b";
-            ctx.fillRect(x + w - 10, y + 2, 6, 6);
+            ctx.fillRect(x + w - 5 - tw - 6, y + 4, 4, 4);
         }
+        
+        ctx.textAlign = "left"; // Reset
+        ctx.restore();
     });
 
+    // 7. Draw Selection Box
     if (state.isBoxSelecting) {
         ctx.fillStyle = "rgba(213, 0, 249, 0.2)";
         ctx.strokeStyle = "#d500f9";
@@ -1173,6 +1261,7 @@ function draw() {
         ctx.strokeRect(r.x, r.y + state.scrollY, r.w, r.h);
     }
 
+    // 8. Draw Playhead
     if (state.isPlaying || state.playbackTime > 0) {
         const playY = (state.playbackTime * (state.bpm / 60)) * state.zoom;
         ctx.strokeStyle = "#00e5ff";
@@ -1190,6 +1279,66 @@ function draw() {
 }
 
 /**
+ * HELPER: Create Event Logic
+ */
+function createEventAtMouse(mx, my, isSnapped) {
+    const colWidth = (canvas.width - 50) / state.columns;
+    const col = Math.floor((mx - 50) / colWidth);
+    
+    // Safety check for valid column
+    if (col < 0 || col >= state.columns) return;
+
+    const rawTime = getTime(my);
+    const finalTime = isSnapped ? snapTime(rawTime) : Math.max(0, rawTime);
+    
+    // Check overlap only if snapped to avoid mess, 
+    // but unsnapped usually implies stacking/freedom.
+    // For now, let's keep overlap check lax or standard.
+    const stepHeight = Math.max(state.zoom / state.quantizer, 5);
+    const finalY = (finalTime * (state.bpm / 60)) * state.zoom;
+    
+    const overlap = state.events.find(ev => {
+         const ey = (ev.time * (state.bpm / 60)) * state.zoom;
+         return ev.column === col && Math.abs(ey - finalY) < stepHeight;
+    });
+
+    if (!overlap) {
+        const type = state.selectedEventType;
+        const params = getCurrentToolParams(type);
+        const def = EVENT_DEFS[type];
+        
+        let curTarget = 0;
+        let curStacking = false;
+        const tgtInput = document.getElementById('prop-target');
+        if(tgtInput && !tgtInput.disabled) curTarget = parseInt(tgtInput.value) || 0;
+        const stkInput = document.getElementById('prop-stacking');
+        if(stkInput && !stkInput.disabled) curStacking = stkInput.checked;
+
+        const newEvt = {
+            _uid: getUid(),
+            time: finalTime,
+            column: col,
+            type: type,
+            params: params, 
+            target: def.hideTarget ? 0 : curTarget,
+            stacking: curStacking
+        };
+        
+        state.events.push(newEvt);
+        state.selection.clear();
+        state.selection.add(newEvt._uid);
+        
+        // If we want immediate drag after creation (snapped only typically):
+        if (isSnapped) {
+            state.isDragging = true;
+            state.dragMode = 'move';
+            // Need to set dragStart relative to the snapped pos so it doesn't jump
+            state.dragStart = { x: mx, y: finalY - state.scrollY }; // approx
+        }
+    }
+}
+
+/**
  * INTERACTION
  */
 container.addEventListener('mousedown', (e) => {
@@ -1198,85 +1347,79 @@ container.addEventListener('mousedown', (e) => {
     const my = e.clientY - rect.top;
     const worldY = my + state.scrollY;
     
-    if (e.button === 1 || mx < 50) {
+    // 1. Time Panning (Waveform Gutter)
+    if (mx < 50) {
+        if (e.button === 0 || e.button === 1) { // Left or Middle
+            state.isDragging = true;
+            state.dragMode = 'pan';
+            state.lastMouseY = my;
+            
+            // New logic: Track if this turns into a pan or stays a click
+            state.didPan = false;
+            state.panStartY = my;
+            state.isSidebarAction = (mx < 50);
+            return;
+        }
+    }
+    
+    // Middle Mouse Pan (Anywhere)
+    if (e.button === 1) {
         state.isDragging = true;
         state.dragMode = 'pan';
         state.lastMouseY = my;
+        state.didPan = false; 
+        state.isSidebarAction = false; // Middle click elsewhere isn't sidebar logic
         return;
     }
 
     const colWidth = (canvas.width - 50) / state.columns;
     const col = Math.floor((mx - 50) / colWidth);
-    
     const stepHeight = Math.max(state.zoom / state.quantizer, 5);
 
+    // Hit Test
     const hit = state.events.find(evt => {
         const ey = (evt.time * (state.bpm / 60)) * state.zoom;
         return col === evt.column && worldY >= ey && worldY <= ey + stepHeight;
     });
 
     if (hit) {
-        if (e.button === 0) { 
-            if (!e.shiftKey && !state.selection.has(hit._uid)) {
-                state.selection.clear();
+        if (e.button === 0) { // Left Click on Event
+            if (e.ctrlKey || e.metaKey) {
+                // CTRL CLICK: Toggle Selection
+                if (state.selection.has(hit._uid)) state.selection.delete(hit._uid);
+                else state.selection.add(hit._uid);
+            } else {
+                // NORMAL CLICK: Select Single
+                if (!state.selection.has(hit._uid)) {
+                    state.selection.clear();
+                    state.selection.add(hit._uid);
+                }
             }
-            state.selection.add(hit._uid);
             
             state.selectedEventType = hit.type;
-            const select = document.getElementById('event-type-select');
-            select.value = hit.type;
+            document.getElementById('event-type-select').value = hit.type;
 
             state.isDragging = true;
             state.dragMode = 'move';
             state.dragStart = { x: mx, y: worldY };
         }
     } else {
-        if (e.button === 0) {
-            if (!state.audioBuffer) {
+        if (e.button === 0) { // Left Click on Empty
+            if (!state.audioBuffer) return;
+
+            if (e.shiftKey) {
+                // SHIFT CLICK LOGIC:
+                // Start Shift Pending (wait to see if dragging for box select or clicking for unsnapped)
+                state.shiftPending = true;
+                state.dragStart = { x: mx, y: my }; // Screen coords for distance check
+                state.dragStartWorld = { x: mx, y: worldY }; // World coords for box/place
                 return;
             }
 
-            const rawTime = getTime(my);
-            const snapped = snapTime(rawTime);
-            
-            const y = (snapped * (state.bpm / 60)) * state.zoom;
-            
-            const overlap = state.events.find(ev => {
-                 const ey = (ev.time * (state.bpm / 60)) * state.zoom;
-                 return ev.column === col && Math.abs(ey - y) < stepHeight;
-            });
-
-            if (!overlap) {
-                const type = state.selectedEventType;
-                // FIX: Use current DOM params instead of default
-                const params = getCurrentToolParams(type);
-                
-                const def = EVENT_DEFS[type];
-                
-                // Also get top-level params
-                let curTarget = 0;
-                let curStacking = false;
-                const tgtInput = document.getElementById('prop-target');
-                if(tgtInput && !tgtInput.disabled) curTarget = parseInt(tgtInput.value) || 0;
-                const stkInput = document.getElementById('prop-stacking');
-                if(stkInput && !stkInput.disabled) curStacking = stkInput.checked;
-
-                const newEvt = {
-                    _uid: getUid(),
-                    time: snapped,
-                    column: col,
-                    type: type,
-                    params: params, 
-                    target: def.hideTarget ? 0 : curTarget,
-                    stacking: curStacking
-                };
-                
-                state.events.push(newEvt);
-                state.selection.clear();
-                state.selection.add(newEvt._uid);
-                state.isDragging = true;
-            }
+            // Normal Click -> Snapped Create
+            createEventAtMouse(mx, my, true); // true = snapped
         } else if (e.button === 2) {
+            // Right Click -> Box Select
             state.isBoxSelecting = true;
             state.dragStart = { x: mx, y: my };
             state.boxSelectRect = { x: mx, y: my, w: 0, h: 0 };
@@ -1288,14 +1431,33 @@ container.addEventListener('mousedown', (e) => {
 });
 
 window.addEventListener('mousemove', (e) => {
-    if (!state.isDragging && !state.isBoxSelecting) return;
-
     const rect = canvas.getBoundingClientRect();
     const mx = e.clientX - rect.left;
     const my = e.clientY - rect.top;
 
+    // Shift Pending Logic (Decide between click-place and drag-select)
+    if (state.shiftPending) {
+        const dist = Math.hypot(mx - state.dragStart.x, my - state.dragStart.y);
+        if (dist > 5) {
+            // Moved enough -> Start Box Select
+            state.shiftPending = false;
+            state.isBoxSelecting = true;
+            state.boxSelectRect = { x: state.dragStart.x, y: state.dragStart.y, w: 0, h: 0 };
+            // Clear selection usually when starting new box
+            state.selection.clear(); 
+        }
+    }
+
+    if (!state.isDragging && !state.isBoxSelecting) return;
+
     if (state.dragMode === 'pan') {
         const deltaY = my - state.lastMouseY;
+        
+        // Threshold check for "Click vs Drag" on sidebar
+        if (Math.abs(my - state.panStartY) > 3) {
+            state.didPan = true;
+        }
+
         state.scrollY -= deltaY;
         if (state.scrollY < 0) state.scrollY = 0;
         state.lastMouseY = my;
@@ -1317,9 +1479,43 @@ window.addEventListener('mousemove', (e) => {
 });
 
 window.addEventListener('mouseup', (e) => {
+    // Finish Shift Pending (It was a click!)
+    if (state.shiftPending) {
+        state.shiftPending = false;
+        // Unsnapped Creation
+        createEventAtMouse(state.dragStart.x, state.dragStart.y, false); // false = unsnapped
+        renderDynamicControls();
+        draw();
+        return;
+    }
+
     if (state.dragMode === 'pan') {
         state.isDragging = false;
         state.dragMode = null;
+
+        // SIDEBAR CLICK LOGIC (If we didn't pan significantly)
+        if (state.isSidebarAction && !state.didPan && e.button === 0) {
+            let t = getTime(state.panStartY); // Use start Y to match click pos exactly
+            
+            // Shift = Precise (Unsnapped), Default = Snapped
+            if (!e.shiftKey) t = snapTime(t);
+            if (t < 0) t = 0;
+            
+            state.playbackTime = t;
+            
+            // Adjust start time if playing
+            if (state.isPlaying) {
+                 state.startTime = state.audioContext.currentTime - state.playbackTime;
+                 if (state.audioSource) {
+                     state.audioSource.stop();
+                     state.audioSource = state.audioContext.createBufferSource();
+                     state.audioSource.buffer = state.audioBuffer;
+                     state.audioSource.connect(state.audioContext.destination);
+                     state.audioSource.start(0, state.playbackTime);
+                 }
+            }
+            draw();
+        }
         return;
     }
 
@@ -1340,14 +1536,16 @@ window.addEventListener('mouseup', (e) => {
              const bps = state.bpm/60;
              const stepTime = 1 / bps / state.quantizer;
              
-             const quantizedTimeDelta = Math.round(timeDelta / stepTime) * stepTime;
+             // UN-SNAPPED LOGIC FOR DRAG
+             // If Shift is held, use raw timeDelta. Else snap it.
+             const finalTimeDelta = e.shiftKey ? timeDelta : (Math.round(timeDelta / stepTime) * stepTime);
              
              const moves = [];
              let valid = true;
              
              state.selection.forEach(uid => {
                  const evt = state.events.find(ev => ev._uid === uid);
-                 const newTime = Math.max(0, evt.time + quantizedTimeDelta);
+                 const newTime = Math.max(0, evt.time + finalTimeDelta);
                  const newCol = Math.max(0, Math.min(state.columns - 1, evt.column + colDelta));
                  
                  const collision = state.events.find(other => {
@@ -1389,7 +1587,8 @@ window.addEventListener('mouseup', (e) => {
         const worldTop = ry + state.scrollY;
         const worldBottom = worldTop + rh;
         
-        state.selection.clear();
+        // Don't clear if Ctrl held?
+        if (!e.ctrlKey) state.selection.clear();
         
         state.events.forEach(evt => {
              const y = (evt.time * (state.bpm / 60)) * state.zoom;
@@ -1428,13 +1627,87 @@ canvas.addEventListener('contextmenu', e => e.preventDefault());
  * KEYBOARD SHORTCUTS
  */
 function handleKey(e) {
+    // 1. Copy / Paste / Cut
+    if (e.ctrlKey || e.metaKey) {
+        if (e.key === 'c' || e.key === 'C') {
+            // COPY
+            if (state.selection.size === 0) return;
+            state.clipboard = [];
+            
+            // Find earliest time in selection to normalize
+            let minTime = Infinity;
+            state.selection.forEach(uid => {
+                const ev = state.events.find(e => e._uid === uid);
+                if (ev && ev.time < minTime) minTime = ev.time;
+            });
+            
+            state.selection.forEach(uid => {
+                const ev = state.events.find(e => e._uid === uid);
+                if (ev) {
+                    // Deep copy
+                    const clone = JSON.parse(JSON.stringify(ev));
+                    // Store relative time
+                    clone.relativeTime = ev.time - minTime; 
+                    state.clipboard.push(clone);
+                }
+            });
+            console.log(`Copied ${state.clipboard.length} events`);
+            return;
+        }
+        
+        if (e.key === 'v' || e.key === 'V') {
+            // PASTE
+            if (state.clipboard.length === 0) return;
+            
+            state.selection.clear();
+            const pasteTime = state.playbackTime;
+            
+            state.clipboard.forEach(clipItem => {
+                const newEv = JSON.parse(JSON.stringify(clipItem));
+                newEv._uid = getUid();
+                newEv.time = pasteTime + clipItem.relativeTime;
+                // keep column, params, etc
+                delete newEv.relativeTime;
+                
+                state.events.push(newEv);
+                state.selection.add(newEv._uid);
+            });
+            draw();
+            return;
+        }
+
+        if (e.key === 'x' || e.key === 'X') {
+            // CUT (Copy + Delete)
+            if (state.selection.size === 0) return;
+            // -- Copy Logic --
+            state.clipboard = [];
+            let minTime = Infinity;
+            state.selection.forEach(uid => {
+                const ev = state.events.find(e => e._uid === uid);
+                if (ev && ev.time < minTime) minTime = ev.time;
+            });
+            state.selection.forEach(uid => {
+                const ev = state.events.find(e => e._uid === uid);
+                if(ev) {
+                    const clone = JSON.parse(JSON.stringify(ev));
+                    clone.relativeTime = ev.time - minTime;
+                    state.clipboard.push(clone);
+                }
+            });
+            // -- Delete Logic --
+            state.events = state.events.filter(ev => !state.selection.has(ev._uid));
+            state.selection.clear();
+            renderDynamicControls();
+            draw();
+            return;
+        }
+    }
+
     if (e.code === 'Space' && document.activeElement.tagName !== 'INPUT') {
         e.preventDefault();
         togglePlay();
     }
 
-    // Removed Copy/Paste functionality per request
-    
     if (e.key === 'Delete' || e.key === 'Backspace') {
         if(document.activeElement.tagName !== 'INPUT') {
             state.events = state.events.filter(ev => !state.selection.has(ev._uid));
@@ -1653,9 +1926,14 @@ function importEvents(input) {
     return true;
 }
 
+function initMisc() {
+    window.parent.postMessage({ type: 'requestSound' }, '*');
+}
+
 // Start
 initUI();
 resize();
+initMisc();
 </script>
 </body>
 </html>
