@@ -56,6 +56,11 @@
             blockType: Scratch.BlockType.BUTTON
           },
           {
+            opcode: 'importFromLegacy',
+            text: 'Import from time/value lists (experimental)',
+            blockType: Scratch.BlockType.BUTTON
+          },
+          {
             opcode: 'setSoundBuffer',
             text: 'Set sound buffer to [BUFFER]',
             blockType: Scratch.BlockType.COMMAND,
@@ -293,11 +298,122 @@
             this.soundBuffer = "";
         }
     }
+    
+    async askUserForFile() {
+      return new Promise((resolve) => {
+        var input = document.createElement('input');
+        input.type = 'file';
+
+        input.onchange = e => { 
+          var file = e.target.files[0]; 
+          resolve(file);
+        }
+
+        input.click();
+      });
+    }
+
+    async askUserForFiles() {
+      return new Promise((resolve) => {
+        var input = document.createElement('input');
+        input.type = 'file';
+        input.multiple = true;
+
+        input.onchange = e => { 
+          var files = Array.from(e.target.files); 
+          resolve(files);
+        }
+        
+        input.oncancel = () => {
+          resolve([]);
+        }
+
+        input.click();
+      });
+    }
 
     // --- Menu Logic ---
 
     async openSequencerWindow() {
-       this._createMenu();
+      this._createMenu();
+    }
+
+    async importFromLegacy() {
+      if (!confirm("This will attempt to import from legacy time/value lists. This is experimental and may not work perfectly. Proceed?"))
+        return;
+      
+      if (!confirm("Please select BOTH the time list and value list files (hold Ctrl or Shift). Proceed?"))
+        return;
+
+      const files = await this.askUserForFiles();
+      if (files.length < 2) {
+          alert("Import cancelled: You must select at least two files (Time list and Value list).");
+          return;
+      }
+      
+      const fileTextA = await files[0].text();
+      const fileTextB = await files[1].text();
+      
+      let timeText, valueText;
+
+      // Heuristic: Check if the first few non-empty lines are numbers
+      const isTimeList = (txt) => {
+         const lines = txt.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+         if (lines.length === 0) return false;
+         // Check up to 5 lines
+         return lines.slice(0, 5).every(l => !isNaN(parseFloat(l)) && isFinite(l));
+      };
+
+      if (isTimeList(fileTextA)) {
+          timeText = fileTextA;
+          valueText = fileTextB;
+      } else {
+          timeText = fileTextB;
+          valueText = fileTextA;
+      }
+
+      const timeLines = timeText.split("\n").map(line => line.trim()).filter(line => line.length > 0);
+      const valueLines = valueText.split("\n").map(line => line.trim()).filter(line => line.length > 0);
+
+      const mode = prompt("Enter the mode for import:\n1: Broadcast (VALUE)\n2: Broadcast (X) with (VALUE)\n3: Advanced Broadcast (X)\n4: Advanced Broadcast (X) with (VALUE)", "1");
+
+      if (!["1", "2", "3", "4"].includes(mode)) {
+        alert("Invalid mode selected. Import cancelled.");
+        return;
+      }
+
+      const mode_X = (mode === "2" || mode === "4") ? prompt("Enter the value for X (broadcast names):", "character-anim") : null;
+
+      const events = [];
+      for (let i = 0; i < Math.min(timeLines.length, valueLines.length); i++) {
+        const time = parseFloat(timeLines[i]);
+        const value = valueLines[i];
+        if (mode === "1" || mode === "3") {
+          events.push({
+            time: time,
+            column: 0,
+            type: mode === "1" ? "Broadcast Message" : "Broadcast Advanced Message",
+            name: value,
+            data: "",
+            target: 0,
+            stacking: false
+          });
+        } else if (mode === "2" || mode === "4") {
+          events.push({
+            time: time,
+            column: 0,
+            type: mode === "2" ? "Broadcast Message" : "Broadcast Advanced Message",
+            name: mode_X,
+            data: value,
+            target: 0,
+            stacking: false
+          });
+        }
+      }
+
+      const finalName = "##" + prompt("Enter a name for the imported chart (no need for the double hashtags):", "Imported Chart");
+      // Initialize with empty JSON structure or whatever default the sequencer expects
+      this._setVariableValue(finalName, JSON.stringify(events));
     }
 
     _createMenu() {
