@@ -375,6 +375,10 @@
                 <button id="btn-export" class="embed-hidden">Export JSON</button>
                 <button id="btn-import" class="embed-hidden">Import JSON</button>
                 <input type="file" id="file-import" accept=".json" style="display:none;">
+                
+                <!-- External Modding Button -->
+                <button id="btn-load-custom" class="secondary hidden">Load Custom Events</button>
+                <input type="file" id="file-custom-events" accept=".json" style="display:none;">
 
                 <button id="btn-save" class="embed-only hidden">Save</button>
                 <button id="btn-exit" class="embed-only hidden btn-danger">Exit without saving</button>
@@ -426,7 +430,7 @@
 /**
  * VERSION CONTROL
  */
-var ce_version = "v0.0.1";
+var ce_version = "v0.0.2";
 
 /**
  * DATA & CONFIGURATION
@@ -439,6 +443,7 @@ const EFFECTS = ['color', 'fisheye', 'whirl', 'pixelate', 'mosaic', 'brightness'
 const urlParams = new URLSearchParams(window.location.search);
 const isEmbed = urlParams.get('embed') === 'true';
 const isDebug = urlParams.get('debug') === 'true';
+const isExternal = urlParams.get('external') === 'true';
 
 // Import Button Logic
 const importBtn = document.getElementById('btn-import');
@@ -467,7 +472,7 @@ fileImportInput.addEventListener('change', (e) => {
 const EVENT_DEFS = {
     // ==ANIMATION==
     "Switch costume": { costume: "string", comment: "Switches the costume. Self-explanatory isn't it?" },
-    "Play Animation": { animation: "string", fps: "number", start: "string", looped: "boolean", _defaults: { fps: 24 }, comment: "Iterates through each frame from the provided costume folder, starting over once completed." },
+    "Play Animation": { animation: "string", fps: "number", start: "int", looped: "boolean", _defaults: { fps: 24, start: 0 }, comment: "Iterates through each frame from the provided costume folder, starting over once completed." },
     "Stop Animation": { comment: "Stops the current animation" },
 
     // ==EFFECTS==
@@ -495,6 +500,7 @@ const EVENT_DEFS = {
     
     "Set Size": { size: "number", _defaults: { size: 70 }, comment: "Sets the size of the object." },
     "Change Size": { size: "number", comment: "Changes the object's size." },
+    "Reset Size": { comment: "Resets the object's size." },
     
     "Set Stretch": { x: "number", y: "number", _defaults: { x: 100, y: 100 }, comment: "Sets the stretch of the object." },
     "Change Stretch": { x: "number", y: "number", comment: "Changes the stretch of the object." },
@@ -510,7 +516,7 @@ const EVENT_DEFS = {
 
     // ==TWEENING==
     "Tween Position": { x: "number", y: "number", duration: "number", tweenMode: "tweenMode", _defaults: { duration: 1, tweenMode: "linear-in out" }, comment: "Tweens the object to a position." },
-    "Cancel Tween Position": { x: "number", y: "number", comment: "Cancels the \"Tween Position\" Event" }, 
+    "Cancel Tween Position": { comment: "Cancels the \"Tween Position\" Event" }, 
     
     "Tween X Position": { x: "number", duration: "number", tweenMode: "tweenMode", _defaults: { duration: 1, tweenMode: "linear-in out" }, comment: "Tweens the X position of the object." },
     "Cancel Tween X Position": { comment: "Cancels the \"Tween X Position\" Event" },
@@ -522,14 +528,14 @@ const EVENT_DEFS = {
     "Cancel Tween Direction": { comment: "Cancels the \"Tween Direction\" Event" },
     
     "Tween Size": { size: "number", duration: "number", tweenMode: "tweenMode", _defaults: { size: 70, duration: 1, tweenMode: "linear-in out" }, comment: "Tweens the size of the object." },
-    "Cancel Tween Size": { size: "number", comment: "Cancels the \"Tween Size\" Event" }, 
+    "Cancel Tween Size": { comment: "Cancels the \"Tween Size\" Event" }, 
     
     "Tween Stretch": { x: "number", y: "number", duration: "number", tweenMode: "tweenMode", _defaults: { x: 100, y: 100, duration: 1, tweenMode: "linear-in out" }, comment: "Tweens the X-axis of the stretch." },
     "Tween X Stretch": { x: "number", duration: "number", tweenMode: "tweenMode", _defaults: { x: 100, duration: 1, tweenMode: "linear-in out" }, comment: "Tweens the X-axis of the stretch." },
     "Tween Y Stretch": { y: "number", duration: "number", tweenMode: "tweenMode", _defaults: { y: 100, duration: 1, tweenMode: "linear-in out" }, comment: "Tweens the Y-axis of the stretch." },
     "Cancel Tween Stretch": { comment: "Cancels the \"Tween Stretch\" Event" },
-    "Cancel Tween X Stretch": { x: "number", comment: "Cancels the \"Cancel Tween Stretch X\" Event" },
-    "Cancel Tween Y Stretch": { y: "number", comment: "Cancels the \"Cancel Tween Stretch Y\" Event" },
+    "Cancel Tween X Stretch": { comment: "Cancels the \"Cancel Tween Stretch X\" Event" },
+    "Cancel Tween Y Stretch": { comment: "Cancels the \"Cancel Tween Stretch Y\" Event" },
 
     // ==EVENTS==
     "Broadcast Message": { name: "string", data: "string", hideTarget: true, comment: "Broadcasts the target message." },
@@ -613,19 +619,30 @@ function initUI() {
     document.getElementById('title-bar').innerText = `Cube Engine V4 Sequencer (${ce_version})`;
 
     // Populate Event Select
-    const select = document.getElementById('event-type-select');
-    Object.keys(EVENT_DEFS).forEach(key => {
-        // HIDE EXAMPLE EVENT UNLESS DEBUG
-        if (key === "Example Event" && !isDebug) return;
+    const populateSelect = () => {
+        const select = document.getElementById('event-type-select');
+        select.innerHTML = ''; // Clear existing
+        Object.keys(EVENT_DEFS).forEach(key => {
+            // HIDE EXAMPLE EVENT UNLESS DEBUG
+            if (key === "Example Event" && !isDebug) return;
 
-        const opt = document.createElement('option');
-        opt.value = key;
-        opt.textContent = key;
-        select.appendChild(opt);
-    });
-    select.value = "Set Position";
+            const opt = document.createElement('option');
+            opt.value = key;
+            opt.textContent = key;
+            select.appendChild(opt);
+        });
+        // Restore selected value if exists
+        if(EVENT_DEFS[state.selectedEventType]) {
+            select.value = state.selectedEventType;
+        } else {
+            select.value = "Set Position";
+            state.selectedEventType = "Set Position";
+        }
+    };
+    populateSelect();
     
     // Enhanced Selection Change Logic
+    const select = document.getElementById('event-type-select');
     select.onchange = (e) => {
         const newType = e.target.value;
         state.selectedEventType = newType;
@@ -722,6 +739,34 @@ function initUI() {
         const json = generateJSON();
         window.parent.postMessage({ type: 'save', data: json }, '*');
     };
+    
+    // External Modding Logic
+    if (isExternal) {
+        const btnLoadCustom = document.getElementById('btn-load-custom');
+        const fileInputCustom = document.getElementById('file-custom-events');
+        
+        btnLoadCustom.classList.remove('hidden');
+        btnLoadCustom.onclick = () => fileInputCustom.click();
+        
+        fileInputCustom.onchange = (e) => {
+            const file = e.target.files[0];
+            if(!file) return;
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                try {
+                    const customDefs = JSON.parse(ev.target.result);
+                    Object.assign(EVENT_DEFS, customDefs);
+                    populateSelect();
+                    renderDynamicControls();
+                    alert(`Loaded ${Object.keys(customDefs).length} custom events.`);
+                } catch(err) {
+                    alert("Failed to load custom events JSON");
+                    console.error(err);
+                }
+            };
+            reader.readAsText(file);
+        };
+    }
     
     // Clear All Logic with Custom Modal
     const modal = document.getElementById('confirm-modal');
@@ -834,7 +879,9 @@ function renderDynamicControls() {
             values = evt.params;
             isEditingSingle = true;
             
-            const def = EVENT_DEFS[defName];
+            // Fallback for custom events that might not be in DEFS yet (though usually they are)
+            const def = EVENT_DEFS[defName] || {};
+            
             const targetGrp = document.getElementById('grp-target');
             const targetInput = document.getElementById('prop-target');
             const stackingGrp = document.getElementById('grp-stacking');
@@ -860,7 +907,7 @@ function renderDynamicControls() {
             }
         }
     } else {
-        const def = EVENT_DEFS[defName];
+        const def = EVENT_DEFS[defName] || {};
         values = initializeParams(defName);
         
         const targetGrp = document.getElementById('grp-target');
@@ -1315,7 +1362,7 @@ function createEventAtMouse(mx, my, isSnapped) {
     if (!overlap) {
         const type = state.selectedEventType;
         const params = getCurrentToolParams(type);
-        const def = EVENT_DEFS[type];
+        const def = EVENT_DEFS[type] || {};
         
         let curTarget = 0;
         let curStacking = false;
@@ -1342,8 +1389,8 @@ function createEventAtMouse(mx, my, isSnapped) {
         if (isSnapped) {
             state.isDragging = true;
             state.dragMode = 'move';
-            // Need to set dragStart relative to the snapped pos so it doesn't jump
-            state.dragStart = { x: mx, y: finalY - state.scrollY }; // approx
+            // Set dragStart using World coordinates (my + scrollY) to prevent jumping
+            state.dragStart = { x: mx, y: my + state.scrollY }; 
         }
     }
 }
@@ -1469,7 +1516,12 @@ window.addEventListener('mousemove', (e) => {
         }
 
         state.scrollY -= deltaY;
-        if (state.scrollY < 0) state.scrollY = 0;
+        
+        // --- SCROLL CLAMPING ---
+        const totalHeight = state.bpl * state.zoom;
+        const maxScroll = Math.max(0, totalHeight - container.clientHeight);
+        state.scrollY = Math.max(0, Math.min(state.scrollY, maxScroll));
+        
         state.lastMouseY = my;
         draw();
         return;
@@ -1623,10 +1675,17 @@ window.addEventListener('mouseup', (e) => {
 
 // Scroll Handling
 container.addEventListener('wheel', (e) => {
+    e.preventDefault(); // Prevent page scroll
+    
+    const totalHeight = state.bpl * state.zoom;
+    const maxScroll = Math.max(0, totalHeight - container.clientHeight);
+    
+    // Add delta
     state.scrollY += e.deltaY;
-    if (state.scrollY < 0) state.scrollY = 0;
-    const maxH = state.bpl * state.zoom - container.clientHeight;
-    if (state.scrollY > maxH) state.scrollY = maxH;
+    
+    // Clamp
+    state.scrollY = Math.max(0, Math.min(state.scrollY, maxScroll));
+    
     draw();
 });
 
@@ -1805,8 +1864,14 @@ function animate() {
     state.playbackTime = now - state.startTime;
     
     const y = (state.playbackTime * (state.bpm / 60)) * state.zoom;
+    
+    // Auto-scroll logic (only if needed)
+    // Keep playhead within view if moving down
     if (y > state.scrollY + canvas.height - 100) {
-        state.scrollY = y - 100;
+        const totalHeight = state.bpl * state.zoom;
+        const maxScroll = Math.max(0, totalHeight - container.clientHeight);
+        let targetScroll = y - 100;
+        state.scrollY = Math.max(0, Math.min(targetScroll, maxScroll));
     }
 
     updateHUD();
