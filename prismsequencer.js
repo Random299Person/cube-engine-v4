@@ -613,7 +613,7 @@
 
       //Handle experimental versions
       var frameSource =
-        localHost ? "http://localhost:8000/sequencer.html" : "https://random299person.github.io/cube-engine-v4/sequencer.html";
+        localHost ? "http://localhost:8000/sequencer.html" : "https://www.rp299.dev/cube-engine-v4/sequencer.html";
       
       frameSource += "?embed=true";
       
