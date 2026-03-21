@@ -287,7 +287,8 @@
 <body>
 
     <div id="title-bar">
-        <!-- Title Text will be populated by JS -->
+        <span id="title-text"></span>
+        <button id="btn-toggle-legacy" style="margin-left: auto; margin-top: 0; width: auto; padding: 4px 8px; font-size: 10px; background: #333; box-shadow: none; border: 1px solid var(--c-border);">Switch Mode</button>
     </div>
 
     <div id="editor-layout">
@@ -295,10 +296,21 @@
             <!-- TOP: Edit Menu -->
             <div id="edit-panel">
                 <h3>Edit Event</h3>
-                <div class="control-group">
+                <div class="control-group" id="grp-event-type">
                     <label>Event Type</label>
                     <select id="event-type-select"></select>
                 </div>
+                
+                <!-- Legacy Mode Inputs -->
+                <div class="control-group hidden" id="grp-legacy-label">
+                    <label>Label</label>
+                    <input type="text" id="prop-legacy-label" value="Event">
+                </div>
+                <div class="control-group hidden" id="grp-legacy-value">
+                    <label>Value (Optional)</label>
+                    <input type="text" id="prop-legacy-value" value="">
+                </div>
+                
                 <div id="dynamic-controls"></div>
                 
                 <hr style="border-color: var(--c-border); margin: 20px 0;">
@@ -376,6 +388,11 @@
                 <button id="btn-import" class="embed-hidden">Import JSON</button>
                 <input type="file" id="file-import" accept=".json" style="display:none;">
                 
+                <!-- Legacy Export Actions -->
+                <button id="btn-export-time" class="embed-hidden hidden legacy-only">Download TimeList.txt</button>
+                <button id="btn-export-label" class="embed-hidden hidden legacy-only">Download LabelList.txt</button>
+                <button id="btn-export-value" class="embed-hidden hidden legacy-only">Download ValueList.txt</button>
+                
                 <!-- External Modding Button -->
                 <button id="btn-load-custom" class="secondary hidden">Load Custom Events</button>
                 <input type="file" id="file-custom-events" accept=".json" style="display:none;">
@@ -430,7 +447,7 @@
 /**
  * VERSION CONTROL
  */
-var ce_version = "v0.0.2";
+var ce_version = "v0.0.3";
 
 /**
  * DATA & CONFIGURATION
@@ -444,6 +461,7 @@ const urlParams = new URLSearchParams(window.location.search);
 const isEmbed = urlParams.get('embed') === 'true';
 const isDebug = urlParams.get('debug') === 'true';
 const isExternal = urlParams.get('external') === 'true';
+const isLegacy = urlParams.get('legacy') === '1' || urlParams.get('legacy') === 'true';
 
 // Import Button Logic
 const importBtn = document.getElementById('btn-import');
@@ -616,7 +634,40 @@ function initializeParams(type) {
  */
 function initUI() {
     // Set Title
-    document.getElementById('title-bar').innerText = `Cube Engine V4 Sequencer (${ce_version})`;
+    document.getElementById('title-text').innerText = `Cube Engine V4 Sequencer (${ce_version})${isLegacy ? ' [LEGACY MODE]' : ''}`;
+    
+    const btnToggleLegacy = document.getElementById('btn-toggle-legacy');
+    if (isEmbed) {
+        btnToggleLegacy.style.display = 'none';
+    } else {
+        btnToggleLegacy.innerText = isLegacy ? 'Switch to Normal Mode' : 'Switch to Legacy Mode';
+        btnToggleLegacy.onclick = () => {
+            const url = new URL(window.location.href);
+            if (isLegacy) {
+                url.searchParams.delete('legacy');
+            } else {
+                url.searchParams.set('legacy', '1');
+            }
+            window.location.href = url.toString();
+        };
+    }
+    
+    // Legacy mode UI toggles
+    if (isLegacy) {
+        document.querySelectorAll('.legacy-only').forEach(el => el.classList.remove('hidden'));
+        document.getElementById('btn-export').classList.add('hidden');
+        document.getElementById('btn-import').classList.add('hidden');
+        document.getElementById('grp-event-type').classList.add('hidden');
+        document.getElementById('grp-legacy-label').classList.remove('hidden');
+        document.getElementById('grp-legacy-value').classList.remove('hidden');
+        document.getElementById('grp-target').classList.add('hidden');
+        document.getElementById('grp-stacking').classList.add('hidden');
+        document.getElementById('dynamic-controls').classList.add('hidden');
+        
+        document.getElementById('btn-export-time').onclick = exportTimeList;
+        document.getElementById('btn-export-label').onclick = exportLabelList;
+        document.getElementById('btn-export-value').onclick = exportValueList;
+    }
 
     // Populate Event Select
     const populateSelect = () => {
@@ -864,6 +915,18 @@ function initUI() {
  * EDIT PANEL LOGIC
  */
 function renderDynamicControls() {
+    if (isLegacy) {
+        if (state.selection.size === 1) {
+            const id = Array.from(state.selection)[0];
+            const evt = state.events.find(e => e._uid === id);
+            if (evt) {
+                document.getElementById('prop-legacy-label').value = evt.label || '';
+                document.getElementById('prop-legacy-value').value = evt.value || '';
+            }
+        }
+        return;
+    }
+
     const container = document.getElementById('dynamic-controls');
     container.innerHTML = '';
     
@@ -1062,6 +1125,24 @@ document.getElementById('prop-stacking').onchange = (e) => {
     state.selection.forEach(uid => {
         const evt = state.events.find(ev => ev._uid === uid);
         if(evt) evt.stacking = val;
+    });
+    draw();
+};
+
+document.getElementById('prop-legacy-label').onchange = (e) => {
+    if (!isLegacy) return;
+    state.selection.forEach(uid => {
+        const evt = state.events.find(ev => ev._uid === uid);
+        if(evt) evt.label = e.target.value;
+    });
+    draw();
+};
+
+document.getElementById('prop-legacy-value').onchange = (e) => {
+    if (!isLegacy) return;
+    state.selection.forEach(uid => {
+        const evt = state.events.find(ev => ev._uid === uid);
+        if(evt) evt.value = e.target.value;
     });
     draw();
 };
@@ -1289,20 +1370,22 @@ function draw() {
         ctx.rect(x + 1, y, w - 2, h - 1);
         ctx.clip();
         
-        // Draw Type
-        ctx.fillText(evt.type, x + 5, y + h/2 + 3);
+        // Draw Type or Label
+        ctx.fillText(isLegacy ? (evt.label || 'Event') : evt.type, x + 5, y + h/2 + 3);
 
-        // Draw Target ID (Right Aligned)
-        ctx.fillStyle = "rgba(255,255,255,0.7)";
-        ctx.textAlign = "right";
-        const targetStr = evt.target.toString();
-        ctx.fillText(targetStr, x + w - 5, y + 10);
-        
-        // Stacking Indicator (Beside Target ID)
-        if(evt.stacking) {
-            const tw = ctx.measureText(targetStr).width;
-            ctx.fillStyle = "#ffeb3b";
-            ctx.fillRect(x + w - 5 - tw - 6, y + 4, 4, 4);
+        // Draw Target ID & Stacking (Normal Mode Only)
+        if (!isLegacy) {
+            ctx.fillStyle = "rgba(255,255,255,0.7)";
+            ctx.textAlign = "right";
+            const targetStr = evt.target.toString();
+            ctx.fillText(targetStr, x + w - 5, y + 10);
+            
+            // Stacking Indicator (Beside Target ID)
+            if(evt.stacking) {
+                const tw = ctx.measureText(targetStr).width;
+                ctx.fillStyle = "#ffeb3b";
+                ctx.fillRect(x + w - 5 - tw - 6, y + 4, 4, 4);
+            }
         }
         
         ctx.textAlign = "left"; // Reset
@@ -1360,26 +1443,40 @@ function createEventAtMouse(mx, my, isSnapped) {
     });
 
     if (!overlap) {
-        const type = state.selectedEventType;
-        const params = getCurrentToolParams(type);
-        const def = EVENT_DEFS[type] || {};
+        let newEvt;
         
-        let curTarget = 0;
-        let curStacking = false;
-        const tgtInput = document.getElementById('prop-target');
-        if(tgtInput && !tgtInput.disabled) curTarget = parseInt(tgtInput.value) || 0;
-        const stkInput = document.getElementById('prop-stacking');
-        if(stkInput && !stkInput.disabled) curStacking = stkInput.checked;
+        if (isLegacy) {
+            const lbl = document.getElementById('prop-legacy-label').value || 'Event';
+            const val = document.getElementById('prop-legacy-value').value || '';
+            newEvt = {
+                _uid: getUid(),
+                time: finalTime,
+                column: col,
+                label: lbl,
+                value: val
+            };
+        } else {
+            const type = state.selectedEventType;
+            const params = getCurrentToolParams(type);
+            const def = EVENT_DEFS[type] || {};
+            
+            let curTarget = 0;
+            let curStacking = false;
+            const tgtInput = document.getElementById('prop-target');
+            if(tgtInput && !tgtInput.disabled) curTarget = parseInt(tgtInput.value) || 0;
+            const stkInput = document.getElementById('prop-stacking');
+            if(stkInput && !stkInput.disabled) curStacking = stkInput.checked;
 
-        const newEvt = {
-            _uid: getUid(),
-            time: finalTime,
-            column: col,
-            type: type,
-            params: params, 
-            target: def.hideTarget ? 0 : curTarget,
-            stacking: curStacking
-        };
+            newEvt = {
+                _uid: getUid(),
+                time: finalTime,
+                column: col,
+                type: type,
+                params: params, 
+                target: def.hideTarget ? 0 : curTarget,
+                stacking: curStacking
+            };
+        }
         
         state.events.push(newEvt);
         state.selection.clear();
@@ -1839,13 +1936,19 @@ function updateHUD() {
         hud.classList.add('active');
         clearTimeout(hudTimeout); // Keep alive
         
-        hudName.textContent = activeEvt.type;
-        hudTime.textContent = `Time: ${activeEvt.time.toFixed(3)}s | Target: ${activeEvt.target}`;
-        
-        const paramStr = Object.entries(activeEvt.params)
-            .map(([k,v]) => `${k}: ${v}`)
-            .join('<br>');
-        hudParams.innerHTML = paramStr;
+        if (isLegacy) {
+            hudName.textContent = activeEvt.label || 'Event';
+            hudTime.textContent = `Time: ${activeEvt.time.toFixed(3)}s`;
+            hudParams.innerHTML = `Value: ${activeEvt.value || 'None'}`;
+        } else {
+            hudName.textContent = activeEvt.type;
+            hudTime.textContent = `Time: ${activeEvt.time.toFixed(3)}s | Target: ${activeEvt.target}`;
+            
+            const paramStr = Object.entries(activeEvt.params)
+                .map(([k,v]) => `${k}: ${v}`)
+                .join('<br>');
+            hudParams.innerHTML = paramStr;
+        }
     } else {
         // Debounced hide
         if (hud.classList.contains('active') && !hudTimeout) {
@@ -1900,11 +2003,20 @@ function generateJSON() {
     });
 
     const exportData = sorted.map(e => {
+        if (isLegacy) {
+            return {
+                time: parseFloat(e.time.toFixed(5)),
+                column: e.column,
+                label: e.label,
+                value: e.value
+            };
+        }
+
         const fullParams = initializeParams(e.type);
         Object.assign(fullParams, e.params);
 
         const obj = {
-            time: parseFloat(e.time.toFixed(3)),
+            time: parseFloat(e.time.toFixed(5)),
             column: e.column,
             type: e.type, 
             ...fullParams,
@@ -1925,6 +2037,27 @@ function exportJSON() {
     downloadAnchorNode.click();
     downloadAnchorNode.remove();
 }
+
+function exportTextFile(filename, content) {
+    const dataStr = "data:text/plain;charset=utf-8," + encodeURIComponent(content);
+    const downloadAnchorNode = document.createElement('a');
+    downloadAnchorNode.setAttribute("href", dataStr);
+    downloadAnchorNode.setAttribute("download", filename);
+    document.body.appendChild(downloadAnchorNode);
+    downloadAnchorNode.click();
+    downloadAnchorNode.remove();
+}
+
+function getSortedEvents() {
+    return [...state.events].sort((a, b) => {
+        if (Math.abs(a.time - b.time) > 0.0001) return a.time - b.time;
+        return a.column - b.column;
+    });
+}
+
+function exportTimeList() { exportTextFile('TimeList.txt', getSortedEvents().map(e => e.time.toFixed(5)).join('\n')); }
+function exportLabelList() { exportTextFile('LabelList.txt', getSortedEvents().map(e => e.label || '').join('\n')); }
+function exportValueList() { exportTextFile('ValueList.txt', getSortedEvents().map(e => e.value || '').join('\n')); }
 
 /**
  * IMPORT EVENTS
@@ -1955,7 +2088,7 @@ function importEvents(input) {
         for (const ev of newEvents) {
             if (ev.column !== column) continue;
             const ey = (ev.time * (state.bpm / 60)) * state.zoom;
-            if (Math.abs(ey - y) < stepHeight) return true;
+            if (Math.abs(ey - y) < stepHeight / 8) return true;
         }
         return false;
     };
@@ -1979,13 +2112,17 @@ function importEvents(input) {
         const stacking = !!item.stacking;
 
         // Avoid stacking collisions with already-accepted new events
-        if (collisionCheck(newEvents, time, column)) {
+        if (!isLegacy && collisionCheck(newEvents, time, column)) {
             // skip this event to avoid stacking
-            console.warn('importEvents: skipped overlapping event at', time, 'col', column, 'type', type);
+            console.warn('importEvents: skipped overlapping event at', time, 'col', column);
             continue;
         }
 
-        newEvents.push({ _uid: getUid(), time, column, type, params, target, stacking });
+        if (isLegacy) {
+            newEvents.push({ _uid: getUid(), time, column, label: item.label || 'Event', value: item.value || '' });
+        } else {
+            newEvents.push({ _uid: getUid(), time, column, type, params, target, stacking });
+        }
     }
 
     // Sort by time then column
