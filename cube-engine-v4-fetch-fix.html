@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cube Engine v4 Fixer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        body {
+            background-color: #111111;
+            color: #ffffff;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .drop-zone {
+            transition: all 0.2s ease;
+        }
+        .drop-zone.dragover {
+            background-color: #1f2937; /* tailwind gray-800 */
+            border-color: #3b82f6; /* tailwind blue-500 */
+            transform: scale(1.02);
+        }
+        /* Custom scrollbar for logs */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #1f2937;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #4b5563;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #6b7280;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4">
+
+    <div class="bg-gray-900 rounded-3xl shadow-2xl p-8 w-full max-w-2xl border border-gray-800">
+        <!-- Header -->
+        <div class="text-center mb-8">
+            <h1 class="text-3xl font-bold mb-2 flex items-center justify-center gap-3">
+                <i data-lucide="box" class="w-8 h-8 text-blue-500"></i>
+                Cube Engine v4 Fixer
+            </h1>
+            <p class="text-gray-400">Fix the "failed to fetch" issue in your compiled PenguinMod (.pmp) files.</p>
+        </div>
+
+        <!-- Upload Area -->
+        <div id="dropZone" class="drop-zone border-2 border-dashed border-gray-600 rounded-2xl p-12 text-center cursor-pointer hover:border-blue-400 hover:bg-gray-800 flex flex-col items-center justify-center gap-4 mb-6 relative">
+            <input type="file" id="fileInput" accept=".pmp" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
+            <i data-lucide="upload-cloud" class="w-16 h-16 text-gray-400 mb-2 drop-icon"></i>
+            <div class="text-lg font-medium text-gray-200" id="dropText">Click to select or drag & drop your .pmp file</div>
+            <div class="text-sm text-gray-500">Only .pmp files are supported</div>
+        </div>
+
+        <!-- Progress / Logs -->
+        <div id="logContainer" class="hidden">
+            <h3 class="text-sm font-semibold text-gray-400 mb-2 uppercase tracking-wider">Process Log</h3>
+            <div id="logs" class="bg-black/50 rounded-xl p-4 font-mono text-sm text-gray-300 h-48 overflow-y-auto flex flex-col gap-1 border border-gray-800">
+                <!-- Logs will appear here -->
+            </div>
+        </div>
+
+        <!-- Actions -->
+        <div id="actionContainer" class="hidden mt-6 text-center">
+            <button id="downloadBtn" class="bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-8 rounded-xl transition-colors shadow-lg flex items-center justify-center gap-2 mx-auto">
+                <i data-lucide="download" class="w-5 h-5"></i>
+                Download Fixed PMP
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // Initialize icons
+        lucide.createIcons();
+
+        // Elements
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const dropText = document.getElementById('dropText');
+        const logContainer = document.getElementById('logContainer');
+        const logs = document.getElementById('logs');
+        const actionContainer = document.getElementById('actionContainer');
+        const downloadBtn = document.getElementById('downloadBtn');
+
+        let fixedBlob = null;
+        let originalFileName = "";
+
+        // Drag and drop visual feedback
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('dragover');
+        });
+
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('dragover');
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            if (e.dataTransfer.files.length > 0) {
+                fileInput.files = e.dataTransfer.files;
+                handleFileSelect();
+            }
+        });
+
+        fileInput.addEventListener('change', handleFileSelect);
+
+        downloadBtn.addEventListener('click', () => {
+            if (!fixedBlob) return;
+            
+            // Extract original name without extension
+            let baseName = originalFileName;
+            if (baseName.toLowerCase().endsWith('.pmp')) {
+                baseName = baseName.slice(0, -4);
+            }
+            const newFileName = `${baseName} (fixed).pmp`;
+
+            const url = URL.createObjectURL(fixedBlob);
+            const a = document.createElement('a');
+            a.style.display = 'none';
+            a.href = url;
+            a.download = newFileName;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+
+            log('Success', `Started download for ${newFileName}`, 'text-green-400');
+        });
+
+        function log(step, message, colorClass = 'text-gray-300') {
+            const entry = document.createElement('div');
+            entry.innerHTML = `<span class="text-gray-500">[${new Date().toLocaleTimeString()}]</span> <span class="font-bold text-gray-400">${step}:</span> <span class="${colorClass}">${message}</span>`;
+            logs.appendChild(entry);
+            logs.scrollTop = logs.scrollHeight;
+        }
+
+        async function handleFileSelect() {
+            const file = fileInput.files[0];
+            if (!file) return;
+
+            // Reset UI
+            logs.innerHTML = '';
+            logContainer.classList.remove('hidden');
+            actionContainer.classList.add('hidden');
+            fixedBlob = null;
+            originalFileName = file.name;
+
+            if (!file.name.toLowerCase().endsWith('.pmp') && !file.name.toLowerCase().endsWith('.zip')) {
+                log('Error', 'Please select a valid .pmp file!', 'text-red-400');
+                return;
+            }
+
+            dropText.textContent = `Selected: ${file.name}`;
+            log('Start', `Loading ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
+
+            try {
+                // 1 & 2: Read and load ZIP
+                log('Extracting', 'Reading PMP file structure...');
+                const arrayBuffer = await file.arrayBuffer();
+                const zip = new JSZip();
+                const loadedZip = await zip.loadAsync(arrayBuffer);
+                log('Extracting', 'Successfully unpackaged.', 'text-green-400');
+
+                // 3: Find project.json
+                log('Scanning', 'Looking for project data...');
+                const projectJsonFile = loadedZip.file("project.json");
+                
+                if (!projectJsonFile) {
+                    throw new Error("Could not find the project data file in the archive. Is this a valid PMP file?");
+                }
+
+                // Read content as text (No JSON parsing as requested)
+                let content = await projectJsonFile.async("string");
+                log('Scanning', 'Found the project data file. Reading raw data...');
+
+                // 4: Replace last occurrence
+                const targetStr = '"https://random299person.github.io/cube-engine-v4/prismsequencer.js"';
+                const replacementStr = '"https://cdn.jsdelivr.net/gh/Random299Person/cube-engine-v4@refs/heads/main/prismsequencer.js"';
+
+                const lastIndex = content.lastIndexOf(targetStr);
+
+                if (lastIndex !== -1) {
+                    log('Patching', 'Target URL found. Applying fix to the last occurrence...', 'text-yellow-400');
+                    // String replacement at specific index
+                    content = content.substring(0, lastIndex) + replacementStr + content.substring(lastIndex + targetStr.length);
+                    
+                    // Update file in zip
+                    loadedZip.file("project.json", content);
+                    log('Patching', 'project data file successfully patched.', 'text-green-400');
+                } else {
+                    log('Warning', 'Could not find the target URL in project data. It might already be fixed or uses a different version.', 'text-yellow-500');
+                    // We continue anyway, so the user can still download it if they want.
+                }
+
+                // 5: Zip back up
+                log('Repackaging', 'Compressing the unpackaged directory back into .pmp...');
+                fixedBlob = await loadedZip.generateAsync({
+                    type: "blob",
+                    compression: "DEFLATE",
+                    compressionOptions: {
+                        level: 6
+                    }
+                }, function updateCallback(metadata) {
+                    // Optional: could add a progress bar here, but text log is fine for small files
+                });
+
+                log('Finished', 'File ready for download!', 'text-blue-400');
+
+                // 6: Show download button
+                actionContainer.classList.remove('hidden');
+
+            } catch (error) {
+                console.error(error);
+                log('Error', error.message, 'text-red-500');
+            }
+        }
+    </script>
+</body>
+</html>
